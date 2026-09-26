@@ -227,18 +227,6 @@ tests, builds) → `dist\Desktop-Crow-Setup-1.3.0.exe`.
 (add `-Distro <name>` to pick a distribution). The sources are copied into WSL,
 built there, and the packages copied back to `dist\`.
 
-Other scripts:
-
-| Command | Purpose |
-|---|---|
-| `npm run icons` | Re-render the app and tray icons from the crow rig. |
-| `npm run test:quick` | Fast unit tests (run by the build scripts). |
-| `npm run test:matrix` | Every animation state (being carried included) into every other, at 6 points of each cycle, both seeds. |
-| `npm run test:soak` | 9 monitor layouts × 24 seeds × 30 simulated minutes of random use, including picking the crow up (about 25 minutes on one core). |
-| `npm run test:e2e:win` | Drives the real app on Windows with the real mouse (moves it briefly, including one drag of the crow). Pass an exe path to test a packaged build. |
-| `npm run qa:sheets` | Renders animation contact sheets to `qa/out/`. `electron scripts/qa-render.js --page=turntable` renders the crow from 12 sides. |
-| `npm run start:diag` | Runs with `--diag`: live animation checks, `diag.log` and `status.json` in the data folder. |
-
 ## Why Electron, and why an AppImage
 
 **Electron** gives the same behaviour on both systems for what this app
@@ -280,7 +268,6 @@ as well for Debian/Ubuntu users who prefer a normal package.
 src/core/       simulation: 3D rig and camera, crow motor, brain, world, items, affection, save schema, QA checker
 src/main/       Electron main process: overlays, tray, storage, native window tracking (win32/X11)
 src/renderer/   overlay drawing, sounds, setup/rename/settings windows
-test/           unit, state/transition, foot-contact, checker-mutation, game-flow and soak tests; Windows E2E
 scripts/        bundling, icon rendering, QA sheets, build scripts
 docs/           AFFECTION.md (trust and gift tables), QA-REPORT.md
 ```
