@@ -45,26 +45,34 @@ reaching Bonded and reaching level 20 (`src/core/milestones.js`).
 
 | Event | Base points | Notes |
 |-------|-------------|-------|
-| The crow eats a snack it found (`eatSpawned`) | +1 | At most 15 points per calendar day from this source. |
+| The crow eats a snack it found (`eatSpawned`) | +1 | The first 15 points a day count in full, then a quarter. |
 | You use **Feed** in the tray menu and it eats the treat (`feedTray`) | +6 | Manual feeding rules below. |
 | You drag food onto the crow and it eats it (`feedHand`) | +10 | Manual feeding rules below; also triggers a bonus gift check. |
 | You pick up a gift it brought (`giftCollected`) | +4 | Shiny things you pick up yourself go to your treasures but earn no trust. |
 | First time the app runs on a new calendar day (`dailyVisit`) | +5 | |
-| You pet it: stroke the pointer back and forth over it without clicking (`pet`) | +2 | Once per petting session (at most every 12 s), at most 20 points per calendar day. |
+| You pet it: stroke the pointer back and forth over it without clicking (`pet`) | +2 | Once per petting session (at most every 12 s). The first 20 points a day count in full, then half. |
 | Clicking the crow 3 times within 4 s (`annoyed`) | −4 | Then 10 s cool-down; it also flies away from you. |
 
 **Diminishing returns (the curve).** Every positive gain is scaled by how much the
 crow already trusts you:
 
 ```
-effective = max(1, round(base × (1 − A / 1400)))      A = current affection
+gain = base × (1 − A / 1400)      A = current affection
 ```
 
 So a hand-feeding is worth 10 points at the start, 8 at 250, 5 at 700 and 3 at 1000.
+Fractions of a point are not lost: they are carried over (and saved) until they
+add up to whole points.
 
 **Manual feeding rules.** Each extra Feed or hand-feed within 15 minutes of an
-earlier one is worth half the previous one (minimum 1 point), and manual feeding
-adds at most 120 points per calendar day.
+earlier one is worth 70 % of the previous one (never less than 1 point).
+
+**Daily amounts, never a wall.** Each calendar day the first 120 points from
+feeding, 15 from snacks the crow finds and 20 from petting count in full. After
+that, feeding and petting count half and found snacks a quarter, so trust keeps
+growing however much you play. Settings → Friendship shows today's amounts.
+(Up to 1.3.0 these were hard daily limits: once all three were used up, a crow
+too shy to bring gifts could not gain a single point until the next day.)
 
 **Neglect.** Once per day the app checks when the crow was last fed (by you or by
 itself). After a 2-day grace period it loses 5 points per extra day, at most 60
@@ -72,14 +80,14 @@ points in one check, never below 0.
 
 ## How long it takes
 
-Produced by `node scripts/affection-timeline.js` with the real functions (snacks
-the crow finds itself are capped as above):
+Produced by `node scripts/affection-timeline.js` with the real functions (40 or
+30 snacks a day found by the crow itself, counted as above):
 
 | Play style | Curious | Friendly | Trusting | Bonded |
 |---|---:|---:|---:|---:|
-| Leaves it running (never feeds) | day 5 | day 13 | day 24 | day 38 |
-| Casual (1 hand-feed, 1 Feed a day) | day 3 | day 8 | day 14 | day 23 |
-| Attentive (3 hand-feeds, 2 Feeds a day) | day 2 | day 5 | day 9 | day 16 |
+| Leaves it running (never feeds) | day 4 | day 11 | day 19 | day 32 |
+| Casual (1 hand-feed, 1 Feed a day) | day 3 | day 7 | day 13 | day 22 |
+| Attentive (3 hand-feeds, 2 Feeds a day) | day 2 | day 5 | day 9 | day 15 |
 
 ## Gift checks
 

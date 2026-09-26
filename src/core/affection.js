@@ -27,9 +27,11 @@ const GAINS = Object.freeze({
 const CURVE_K = 1400;
 
 const MANUAL_FEED_WINDOW_MS = 15 * 60 * 1000;
-const DAILY_MANUAL_CAP = 120;
-const DAILY_PASSIVE_CAP = 15;
-const DAILY_PET_CAP = 20;
+const REPEAT_FACTOR = 0.7;
+const DAILY_FULL = Object.freeze({ feeding: 120, snacks: 15, petting: 20 });
+const OVER_DAILY = Object.freeze({ feeding: 0.5, snacks: 0.25, petting: 0.5 });
+const SOURCE = Object.freeze({ feedTray: 'feeding', feedHand: 'feeding', eatSpawned: 'snacks', pet: 'petting' });
+const DAILY_KEY = Object.freeze({ feeding: 'dailyManual', snacks: 'dailyPassive', petting: 'dailyPet' });
 
 const ANNOY = Object.freeze({ clicks: 3, windowMs: 4000, penalty: -4, cooldownMs: 10000 });
 
@@ -114,44 +116,57 @@ function daysBetween(aKey, bKey) {
   return Math.round((b - a) / 86400000);
 }
 
+function dailyEntry(state, source, nowMs) {
+  const key = DAILY_KEY[source];
+  const today = dateKey(nowMs);
+  if (!state[key] || state[key].date !== today) state[key] = { date: today, points: 0 };
+  return state[key];
+}
+
+function todayPoints(state, nowMs) {
+  const today = dateKey(nowMs);
+  const out = {};
+  for (const source of Object.keys(DAILY_FULL)) {
+    const e = state[DAILY_KEY[source]];
+    out[source] = e && e.date === today ? e.points : 0;
+  }
+  return out;
+}
+
+function rawGain(state, kind, nowMs, before) {
+  const base = GAINS[kind];
+  if (base == null) throw new Error(`unknown affection event ${kind}`);
+  let gain = base * Math.max(0, 1 - before / CURVE_K);
+  if (kind === 'feedTray' || kind === 'feedHand') {
+    const recent = (state.manualFeeds || []).filter((t) => nowMs - t < MANUAL_FEED_WINDOW_MS);
+    gain = Math.max(1, gain * Math.pow(REPEAT_FACTOR, recent.length));
+    recent.push(nowMs);
+    state.manualFeeds = recent.slice(-20);
+  }
+  const source = SOURCE[kind];
+  if (source && dailyEntry(state, source, nowMs).points >= DAILY_FULL[source]) gain *= OVER_DAILY[source];
+  return gain;
+}
+
 function applyEvent(state, kind, nowMs) {
   const before = state.value;
   let delta = 0;
   if (kind === 'annoyed') {
     delta = ANNOY.penalty;
   } else {
-    const base = GAINS[kind];
-    if (base == null) throw new Error(`unknown affection event ${kind}`);
-    delta = effectiveGain(base, before);
-    if (kind === 'feedTray' || kind === 'feedHand') {
-      const recent = (state.manualFeeds || []).filter((t) => nowMs - t < MANUAL_FEED_WINDOW_MS);
-      delta = Math.max(1, Math.round(delta * Math.pow(0.5, recent.length)));
-      recent.push(nowMs);
-      state.manualFeeds = recent.slice(-20);
-      const today = dateKey(nowMs);
-      if (!state.dailyManual || state.dailyManual.date !== today) state.dailyManual = { date: today, points: 0 };
-      const room = Math.max(0, DAILY_MANUAL_CAP - state.dailyManual.points);
-      delta = Math.min(delta, room);
-      state.dailyManual.points += delta;
-    }
-    if (kind === 'eatSpawned') {
-      const today = dateKey(nowMs);
-      if (!state.dailyPassive || state.dailyPassive.date !== today) state.dailyPassive = { date: today, points: 0 };
-      delta = Math.min(delta, Math.max(0, DAILY_PASSIVE_CAP - state.dailyPassive.points));
-      state.dailyPassive.points += delta;
-    }
-    if (kind === 'pet') {
-      const today = dateKey(nowMs);
-      if (!state.dailyPet || state.dailyPet.date !== today) state.dailyPet = { date: today, points: 0 };
-      delta = Math.min(delta, Math.max(0, DAILY_PET_CAP - state.dailyPet.points));
-      state.dailyPet.points += delta;
-    }
+    const total = (Number.isFinite(state.carry) ? state.carry : 0) + rawGain(state, kind, nowMs, before);
+    delta = Math.round(total);
+    state.carry = Math.max(-0.5, Math.min(0.5, total - delta));
     if (kind === 'feedTray' || kind === 'feedHand' || kind === 'eatSpawned') state.lastFedAt = nowMs;
   }
   state.value = clampAffection(before + delta);
+  if (state.value >= AFFECTION_MAX) state.carry = 0;
+  const gained = state.value - before;
+  const source = SOURCE[kind];
+  if (source && gained > 0) dailyEntry(state, source, nowMs).points += gained;
   const tb = tierIndex(before);
   const ta = tierIndex(state.value);
-  return { delta: state.value - before, before, after: state.value, tierBefore: tb, tierAfter: ta, levelBefore: levelOf(before), levelAfter: levelOf(state.value) };
+  return { delta: gained, before, after: state.value, tierBefore: tb, tierAfter: ta, levelBefore: levelOf(before), levelAfter: levelOf(state.value) };
 }
 
 function applyDailyDecay(state, nowMs) {
@@ -211,9 +226,11 @@ module.exports = {
   GAINS,
   CURVE_K,
   MANUAL_FEED_WINDOW_MS,
-  DAILY_MANUAL_CAP,
-  DAILY_PASSIVE_CAP,
-  DAILY_PET_CAP,
+  REPEAT_FACTOR,
+  DAILY_FULL,
+  OVER_DAILY,
+  SOURCE,
+  todayPoints,
   ANNOY,
   DECAY,
   GIFT_CHECK_INTERVAL_S,

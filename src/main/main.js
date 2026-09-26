@@ -191,6 +191,7 @@ function start() {
       tier: s.tier,
       affection: s.affection,
       level: s.level,
+      today: s.today,
       mood: s.mood,
       music: s.music,
       musicWatch: media ? (media.gaveUp ? 'unavailable' : media.running ? 'on' : 'off') : 'off',

@@ -1,8 +1,52 @@
-# QA report — Desktop Crow 1.3.0
+# QA report — Desktop Crow 1.3.1
 
-Desktop Crow is made by tordev. This report covers what changed in 1.3, 1.2
-and 1.1, what was tested, what the tests found, what was fixed, and what was
-not verified. All numbers are from the final code.
+Desktop Crow is made by tordev. This report covers what changed in 1.3.1,
+1.3, 1.2 and 1.1, what was tested, what the tests found, what was fixed, and
+what was not verified. All numbers are from the final code.
+
+## What changed in 1.3.1
+
+* **Fix: trust could stop growing for the rest of the day.** Up to 1.3.0
+  each way of earning trust had a hard daily limit: 120 points from Feed and
+  hand-feeding, 15 from snacks the crow found itself and 20 from petting.
+  Once all three were used up, the only points left were the first visit of
+  the day and gifts, and a crow below Friendly never brings gifts. So a Wary
+  or Curious crow could not gain a single point until the next day, however
+  much it was fed or petted. A save from a crow that had stopped growing
+  showed exactly this: 149 points (level 5, Curious) with all three limits
+  used up. Now the first 120, 15 and 20 points of each day count in full, and
+  after that feeding and petting count half and found snacks a quarter, so
+  trust always keeps growing. Fractions of a point are carried over (and
+  saved) instead of being rounded away. A Feed or hand-feed within 15 minutes
+  of the previous one is now worth 70 % of it (it was half). Settings →
+  Friendship shows how much of today's full amount each kind has used, and
+  the points it lists for each kind of moment include the slowdown. Normal
+  play keeps its pace: the stages come at most a day sooner, except for a
+  crow that is never fed, which now reaches Bonded on day 32 instead of 38
+  (docs/AFFECTION.md).
+* **Fix: Feed was sometimes ignored for up to half a minute.** A treat that
+  landed while the crow was still eating, hopping or flying went unnoticed:
+  the crow finished what it was doing, often chose a walk or a flight
+  elsewhere, and only came back for the treat at a later decision. Pressed
+  in mid-flight, the treat dropped where the crow was in the air, so it
+  landed far away and had to walk all the way back. Now the crow goes for a
+  treat you gave it as soon as it is free, waits for one that is still
+  falling instead of wandering off, and a Feed in mid-flight drops the treat
+  where the crow is about to land. Snacks that turn up on their own are
+  still optional to it, as before.
+
+## Results for 1.3.1
+
+| Check | What it covers | Result |
+|---|---|---|
+| `npm test` | 135 tests: everything listed for 1.3.0, with the old daily-limit test replaced by five tests of the new daily amounts (repeat feeding, feeding and found snacks past the daily amount, a very busy day, the carried fraction), petting past its daily amount, and two new Feed tests (right after a meal, and in mid-flight). Both Feed tests fail on the 1.3.0 code. | **135/135 pass** |
+| Feed response (simulation) | 1,080 Feeds (60 seeds × 6 Feeds × 3 activity levels), each pressed 0.6 s after the previous treat was eaten, 1.3.0 code against 1.3.1 | 1.3.0: 77 took over 20 s, the slowest 34 s. 1.3.1: 90 % eaten within 2.2 s, none over 8.4 s |
+| Stuck save, packaged app | The 1.3.1 Windows build and the Linux AppImage (under WSLg) started with a save at 149 points and all three old daily limits used up, then fed through the test inbox. With the 1.3.0 rules the same save earns 0 points for every Feed, hand-feed, found snack and petting. | Windows: 4 Feeds, trust 149 → 152 → 154 → 155 → 156, saved with today's feeding points (127) and the carried fraction. Linux: 3 Feeds, 149 → 155; the crow also left its box, danced, hid, came back and opened Settings, with no errors. **pass** |
+| Transition matrix | 15 animation states × 15 × 6 entry points × 2 seeds = 2,700 runs, 781,523 frames | **0 violations** |
+| Soak sample (`node test/soak.js all 900 1-6`) | 54 runs of random use, 2,916,000 frames, with 1,887 Feeds and 61 petting sessions | **54/54 runs clean** |
+| Settings window | The Friendship tab rendered from the real game code, early in a day and past all three daily amounts | today's amounts and the slower points show as intended |
+| Packages | `app.asar` of the Windows build and of the AppImage, and the `.deb` metadata | version 1.3.1, author and maintainer tordev, both fixes inside, no comments in the app's code |
+| Windows end-to-end | Packaged 1.3.1 build, real mouse, the 27 checks listed for 1.3.0 | **25/27.** Both misses are the same step: the click on the crow never reached the app (it counted 0 clicks), so there was no startle and no bubble. The PC was in use during the run: the window under the pointer at those spots was a browser window. A second run lost its very first click the same way and was stopped there, rather than keep moving the pointer. Clicking the box, petting, picking up and dropping, Feed, Hide/Show, dancing, Pause, Quit and restart all passed. The click reaction is covered by `npm test`, and its code did not change in 1.3.1. |
 
 ## What changed in 1.3
 
@@ -18,7 +62,8 @@ not verified. All numbers are from the final code.
   new level.
 * **Petting:** stroke the pointer back and forth over the crow without
   clicking. It stops, fluffs up, half-closes its eyes, chirps and hearts float
-  up. +2 trust per petting session, at most 20 a day.
+  up. +2 trust per petting session, at most 20 a day (from 1.3.1: half
+  as much after the first 20).
 * **Moods:** besides hunger and energy the crow now has a happiness value
   (feeding, petting, gifts and dancing raise it; being annoyed, hunger and
   exhaustion lower it). It says how it feels in a speech bubble with a bar
@@ -51,15 +96,15 @@ not verified. All numbers are from the final code.
 | Transition matrix | 15 animation states (dance and pet added) × 15 × 6 entry points × 2 seeds = 2,700 runs, 781,523 frames | **0 violations** |
 | Soak sample (`node test/soak.js all 900 1-6`) | 54 runs of random use, 2,916,000 frames; the random pointer petted the crow 79 times | **54/54 runs clean** |
 | Windows end-to-end | Packaged 1.3.0 build, real mouse, 27 checks: the box at start and opening it with a click, the mood bubble on a click, petting by stroking the mouse, dancing, plus the 22 earlier checks | **27/27**, twice in a row |
+| Music helper | Run on the development PC: it found the Spotify app's media session (paused at the time) in half a second; the packaged app starts it from `app.asar.unpacked` and it is gone after Quit | checked |
+| Linux smoke test | 1.3.0 AppImage under WSLg: box opened, Feed, a dance, Hide/Show, Settings opened | **pass** |
+| Settings window | Every tab rendered; the computed border and outline of every element were checked; title bar colour applied (3 of 3 calls succeeded) | **no borders or outlines** |
 
 Found and fixed while building 1.3: in one real-mouse run the petting did not
 register, because the crow could still decide to hop or walk off while the
 first strokes were coming in. The crow now holds still while the pointer
 strokes it, and a sleeping crow wakes up to be petted; the same scripted
 strokes then registered within a second in every attempt.
-| Music helper | Run on the development PC: it found the Spotify app's media session (paused at the time) in half a second; the packaged app starts it from `app.asar.unpacked` and it is gone after Quit | checked |
-| Linux smoke test | 1.3.0 AppImage under WSLg: box opened, Feed, a dance, Hide/Show, Settings opened | **pass** |
-| Settings window | Every tab rendered; the computed border and outline of every element were checked; title bar colour applied (3 of 3 calls succeeded) | **no borders or outlines** |
 
 ## What changed in 1.2
 
@@ -246,16 +291,19 @@ body, with a 5-unit twitch limit.
 
 ## Not verified
 
+* **Clicking the crow in the packaged 1.3.1 build:** the end-to-end click
+  on the crow did not reach the app because the PC was in use during the
+  run (see *Results for 1.3.1*). It passed on 1.3.0, its code is unchanged,
+  and `npm test` covers the reaction and the bubble.
+
 * **Dancing to a song actually playing:** the dance was tested with a
   simulated "music playing" signal, and the helper was run against the
   Spotify app while it was paused; no song was played during testing.
   Linux music detection was tested with sample `dbus-send` replies only.
 * **Petting by hand:** petting was tested with scripted mouse strokes; how
   easy it feels to trigger by hand was not judged by a person.
-
-* **The Windows installer itself was not run on this PC:** an earlier Desktop
-  Crow (installed 23 September) is present and the new installer would
-  replace it. The app inside the installer passed the end-to-end test.
+* **The Windows installer itself was not run on this PC:** Desktop Crow 1.3.0
+  is installed and running here, and the new installer would replace it. The app inside the installer passed the end-to-end test.
   Updating over 1.0 or 1.1 (keeping the save, migrating the size) is covered
   by unit tests only.
 * **A person dragging the crow:** dragging was tested with scripted mouse

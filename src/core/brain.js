@@ -347,7 +347,10 @@ class Brain {
       const want = item.source !== 'spawn' || this.hunger > 0.6;
       if (!want || !this.rnd().chance(item.source === 'spawn' ? 0.5 : 0.9)) return;
     }
-    if (['eat', 'giftDrop', 'fly', 'land'].includes(c.state) || c.airborne) return;
+    if (['eat', 'giftDrop', 'fly', 'land'].includes(c.state) || c.airborne) {
+      if (item.source !== 'spawn') this.nextDecide = Math.min(this.nextDecide, 0.2);
+      return;
+    }
     if (c.state === 'hop' || c.state === 'walk') {
       if (item.source === 'spawn' && this.rnd().chance(0.5)) return;
     }
@@ -403,6 +406,10 @@ class Brain {
     const food = this.bestItem((it) => ITEM_TYPES[it.type].kind === 'food');
     if (food && (this.hunger > 0.22 || food.source !== 'spawn' || rng.chance(0.3))) {
       if (this.planApproach(food, 'eat')) return;
+    }
+    if (this.treatFalling()) {
+      this.nextDecide = 0.2;
+      return;
     }
     const shiny = this.bestItem((it) => ITEM_TYPES[it.type].kind === 'shiny');
     if (shiny && rng.chance(0.45)) {
@@ -530,6 +537,13 @@ class Brain {
       }
     }
     return best;
+  }
+
+  treatFalling() {
+    for (const it of this.sim.items.values()) {
+      if (it.state === 'falling' && it.source !== 'spawn' && !it.gift && it.age < 3 && ITEM_TYPES[it.type].kind === 'food') return true;
+    }
+    return false;
   }
 
   standingSpotFor(item) {

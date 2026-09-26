@@ -323,6 +323,7 @@ class Game {
       tier: { key: tier.key, name: tier.name, index: A.tierIndex(s.affection.value), count: A.TIERS.length },
       affection: s.affection.value,
       level: A.levelInfo(s.affection.value),
+      today: A.todayPoints(s.affection, this.now()),
       mood: this.sim.brain ? this.sim.brain.moodState() : null,
       music: this.sim.music,
       boxed: this.sim.boxed,

@@ -524,8 +524,9 @@ class Sim {
     const k = this.k;
     const type = this.rng.pick(TREATS);
     const def = ITEM_TYPES[type];
+    const aim = c.state === 'fly' && !c.st.offscreen && c.st.target ? c.st.target : c;
     let spot = c.visible && c.state !== 'away' && !c.airborne && c.state !== 'held' ? this.eatSpot(c, def) : null;
-    if (!spot) spot = this.world.randomWalkable(this.rng, { near: { x: c.x, y: c.y }, minR: 40 * k, maxR: 120 * k });
+    if (!spot) spot = this.world.randomWalkable(this.rng, { near: { x: aim.x, y: aim.y }, minR: 40 * k, maxR: 120 * k });
     if (!spot) return false;
     const it = this.addItem(type, spot.x, spot.y, { z: 150 * k, source: 'tray', vrot: this.rng.range(-3, 3) });
     it.appear = 0;

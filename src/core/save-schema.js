@@ -30,7 +30,7 @@ function defaultSave(nowMs = Date.now()) {
   return {
     version: SAVE_VERSION,
     crow: { name: 'Poe', gender: 'she', setupComplete: false, createdAt: nowMs },
-    affection: { value: 0, lastFedAt: null, lastDecayCheck: null, manualFeeds: [], dailyManual: null, dailyPassive: null, dailyPet: null },
+    affection: { value: 0, carry: 0, lastFedAt: null, lastDecayCheck: null, manualFeeds: [], dailyManual: null, dailyPassive: null, dailyPet: null },
     gifts: { inventory: {}, history: [], pending: [], lastGiftAt: null, today: null, awakeSinceCheck: 0 },
     mood: { hunger: 0.35, energy: 0.9, happiness: 0.6, at: null },
     stats: {
@@ -91,6 +91,7 @@ function normalizeSave(raw, nowMs = Date.now()) {
   if (typeof aff === 'number') aff = { value: aff };
   aff = obj(aff);
   out.affection.value = clampAffection(num(aff.value, 0));
+  out.affection.carry = num(aff.carry, 0, -0.5, 0.5);
   out.affection.lastFedAt = ts(aff.lastFedAt);
   out.affection.lastDecayCheck = dkey(aff.lastDecayCheck);
   out.affection.manualFeeds = Array.isArray(aff.manualFeeds) ? aff.manualFeeds.filter((t) => ts(t)).slice(-20) : [];

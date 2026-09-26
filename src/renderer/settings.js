@@ -248,27 +248,49 @@ function renderFriendship(s, L, tier, p) {
     }
   }
 
-  if (changed('gains', [L.value, crow.gender])) {
+  const today = s.today || { feeding: 0, snacks: 0, petting: 0 };
+  const over = (src) => !!src && (today[src] || 0) >= A.DAILY_FULL[src];
+  if (changed('gains', [L.value, crow.gender, over('feeding'), over('snacks'), over('petting')])) {
     const rows = [
-      ['hand', 'Hand-feed a snack', A.GAINS.feedHand],
-      ['bowl', 'Feed from the tray menu', A.GAINS.feedTray],
-      ['sun', 'A new day together', A.GAINS.dailyVisit],
-      ['gift', 'Collect a gift', A.GAINS.giftCollected],
-      ['seed', 'A snack it finds itself', A.GAINS.eatSpawned],
-      ['zap', 'Three quick clicks annoy it', A.ANNOY.penalty],
+      ['hand', 'Hand-feed a snack', 'feedHand'],
+      ['bowl', 'Feed from the tray menu', 'feedTray'],
+      ['heart', 'Pet it', 'pet'],
+      ['sun', 'A new day together', 'dailyVisit'],
+      ['gift', 'Collect a gift', 'giftCollected'],
+      ['seed', 'A snack it finds itself', 'eatSpawned'],
     ];
     const grid = $('gains');
     grid.textContent = '';
-    for (const [name, label, base] of rows) {
-      const now = A.effectiveGain(base, L.value);
-      const row = h('div', now < 0 ? 'gain minus' : 'gain');
-      row.append(iconBox(name, 15), h('span', 'gain-label', label), h('b', null, `${now > 0 ? '+' : '−'}${Math.abs(now)}`));
+    for (const [name, label, kind] of rows) {
+      const src = A.SOURCE[kind];
+      let g = A.GAINS[kind] * Math.max(0, 1 - L.value / A.CURVE_K);
+      if (over(src)) g *= A.OVER_DAILY[src];
+      const shown = g >= 1.95 ? String(Math.round(g)) : String(Math.max(0.1, Math.round(g * 10) / 10));
+      const row = h('div', over(src) ? 'gain slowed' : 'gain');
+      row.append(iconBox(name, 15), h('span', 'gain-label', label), h('b', null, `+${shown}`));
       grid.appendChild(row);
     }
+    const annoy = h('div', 'gain minus');
+    annoy.append(iconBox('zap', 15), h('span', 'gain-label', 'Three quick clicks annoy it'), h('b', null, `−${Math.abs(A.ANNOY.penalty)}`));
+    grid.appendChild(annoy);
+    const F = A.DAILY_FULL;
     $('gainsNote').textContent = fill(
-      `Points shrink a little as trust grows. Feeding again within ${Math.round(A.MANUAL_FEED_WINDOW_MS / 60000)} minutes counts for less, feeding adds up to ${A.DAILY_MANUAL_CAP} points a day and found snacks up to ${A.DAILY_PASSIVE_CAP}. After ${A.DECAY.graceDays} days without food, trust starts to fade, a little more each day.`,
+      `Points shrink a little as trust grows, and feeding again within ${Math.round(A.MANUAL_FEED_WINDOW_MS / 60000)} minutes counts for less. Each day the first ${F.feeding} points from feeding, ${F.snacks} from snacks {subj} finds and ${F.petting} from petting count in full; after that, feeding and petting count half and found snacks a quarter, so trust never stops growing. After ${A.DECAY.graceDays} days without food, trust starts to fade, a little more each day.`,
       crow
     );
+  }
+  if (changed('today', [today])) {
+    const host = $('today');
+    host.textContent = '';
+    for (const [src, label] of [['feeding', 'Feeding today'], ['snacks', 'Found snacks today'], ['petting', 'Petting today']]) {
+      const full = A.DAILY_FULL[src];
+      const v = today[src] || 0;
+      const cell = h('div', v >= full ? 'today-cell over' : 'today-cell');
+      const top = h('div', 'today-top');
+      top.append(h('span', null, label), h('b', null, `${v} / ${full}`));
+      cell.append(top, progressBar(Math.min(1, v / full), true), h('small', null, v >= full ? `now counts ${A.OVER_DAILY[src] >= 0.5 ? 'half' : 'a quarter'}` : 'full points'));
+      host.appendChild(cell);
+    }
   }
 }
 
