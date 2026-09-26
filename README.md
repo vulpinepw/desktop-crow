@@ -2,7 +2,7 @@
 
 <table>
 <tr>
-<td><img width="1306" alt="image" src="https://github.com/user-attachments/assets/ce849ffa-0ea7-4e40-931e-8907af442c03" /></td>
+<td><img width="1306" alt="image" src="head.png" /></td>
 <td>
 
 **Made by tordev.**
@@ -80,11 +80,11 @@ Notes for Linux desktops:
 <div style="overflow-x: auto;">
 <table>
 <tr>
-<td><img width="380" alt="screenshot 1" src="https://github.com/user-attachments/assets/b973babb-d4b6-4943-80ce-051733be48ec" /></td>
-<td><img width="380" alt="screenshot 2" src="https://github.com/user-attachments/assets/770d42c0-e955-4252-9f35-39544594b65d" /></td>
-<td><img width="380" alt="screenshot 3" src="https://github.com/user-attachments/assets/f40fc74e-34a2-46ce-b749-b347de62e271" /></td>
-<td><img width="380" alt="screenshot 4" src="https://github.com/user-attachments/assets/16bbe847-80ff-4a9e-a65c-d09d429be53a" /></td>
-<td><img width="380" alt="screenshot 5" src="https://github.com/user-attachments/assets/3f85353b-8fb7-42df-979e-f52fb87aa482" /></td>
+<td><img width="380" alt="screenshot 1" src="Screenshot%202026-09-26%20180044.png" /></td>
+<td><img width="380" alt="screenshot 2" src="Screenshot%202026-09-26%20180128.png" /></td>
+<td><img width="380" alt="screenshot 3" src="Screenshot%202026-09-26%20180143.png" /></td>
+<td><img width="380" alt="screenshot 4" src="Screenshot%202026-09-26%20180257.png" /></td>
+<td><img width="380" alt="screenshot 5" src="Screenshot%202026-09-26%20180315.png" /></td>
 </tr>
 </table>
 </div>
