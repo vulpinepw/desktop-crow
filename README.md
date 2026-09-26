@@ -1,16 +1,25 @@
 # Desktop Crow
 
+<table>
+<tr>
+<td><img width="1306" alt="image" src="https://github.com/user-attachments/assets/ce849ffa-0ea7-4e40-931e-8907af442c03" /></td>
+<td>
+
 **Made by tordev.**
 
-A small pet crow that lives on your desktop, in the spirit of *Desktop Goose*.
+A small pet crow that lives on your desktop, inspired by *Desktop Goose*.
 Your screen is its floor, seen from slightly above: it walks, hops and flies
 all over it, perches on the top edges of your windows and on the taskbar,
 naps, pecks at things, watches your pointer, eats the snacks that drop onto
 your screen and, once it trusts you, brings you shiny gifts. You can pick it
 up and carry it wherever you like.
 
-One codebase, two builds: a Windows installer and a Linux AppImage (plus a
+Available on multiple OS: a Windows installer and a Linux AppImage (plus a
 `.deb` for Debian/Ubuntu).
+
+</td>
+</tr>
+</table>
 
 ## Install and run
 
@@ -65,6 +74,20 @@ Notes for Linux desktops:
 * **Ubuntu 24.04 and newer:** they restrict the user namespaces Chromium's
   sandbox uses inside AppImages. If the AppImage closes immediately with a
   *SUID sandbox* message, use the `.deb` or start it with `--no-sandbox`.
+
+## A few screenshots
+
+<div style="overflow-x: auto;">
+<table>
+<tr>
+<td><img width="380" alt="screenshot 1" src="https://github.com/user-attachments/assets/b973babb-d4b6-4943-80ce-051733be48ec" /></td>
+<td><img width="380" alt="screenshot 2" src="https://github.com/user-attachments/assets/770d42c0-e955-4252-9f35-39544594b65d" /></td>
+<td><img width="380" alt="screenshot 3" src="https://github.com/user-attachments/assets/f40fc74e-34a2-46ce-b749-b347de62e271" /></td>
+<td><img width="380" alt="screenshot 4" src="https://github.com/user-attachments/assets/16bbe847-80ff-4a9e-a65c-d09d429be53a" /></td>
+<td><img width="380" alt="screenshot 5" src="https://github.com/user-attachments/assets/3f85353b-8fb7-42df-979e-f52fb87aa482" /></td>
+</tr>
+</table>
+</div>
 
 ## Using it
 
