@@ -1,0 +1,269 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+    <title>Desktop Crow settings</title>
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero-deco" id="heroDeco" aria-hidden="true"></div>
+      <div class="petals" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <button class="hero-art" id="heroArt" type="button" aria-label="Say hello to your crow">
+        <span class="moon"></span>
+        <canvas id="stage"></canvas>
+      </button>
+      <div class="hero-body">
+        <p class="eyebrow">Desktop Crow</p>
+        <h1 id="heroName">&nbsp;</h1>
+        <div class="badges">
+          <span class="badge badge-sheen" id="heroLevel"></span>
+          <span class="badge badge-rose" id="heroTier"></span>
+          <span class="badge" id="heroPronouns"></span>
+        </div>
+        <div class="xp">
+          <div class="progress" id="heroBar"><i></i></div>
+          <div class="xp-meta"><span id="heroPoints"></span><span id="heroNext"></span></div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="crow" aria-selected="true">Crow</button>
+      <button role="tab" data-tab="friendship" aria-selected="false">Friendship</button>
+      <button role="tab" data-tab="treasures" aria-selected="false">Treasures</button>
+      <button role="tab" data-tab="behavior" aria-selected="false">Behaviour</button>
+      <button role="tab" data-tab="system" aria-selected="false">System</button>
+    </nav>
+
+    <main class="panels" id="panels">
+      <section data-panel="crow">
+        <div class="group">
+          <div class="group-head">
+            <h2>Right now</h2>
+            <p id="moodTip"></p>
+          </div>
+          <div class="mood-card">
+            <div class="mood-face" id="moodFace"></div>
+            <div class="mood-body">
+              <b id="moodTitle"></b>
+              <p id="moodLine"></p>
+              <div class="mood-bars" id="moodBars"></div>
+            </div>
+          </div>
+        </div>
+        <div class="group">
+          <div class="group-head">
+            <h2>Identity</h2>
+            <p>What your crow is called, and how it is spoken of.</p>
+          </div>
+          <div class="tile tile-stack">
+            <label for="name">Name</label>
+            <div class="field-row">
+              <input id="name" type="text" maxlength="24" autocomplete="off" spellcheck="false" />
+              <button class="btn btn-primary" id="saveName" type="button">Save</button>
+            </div>
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="feather"></span>
+            <div class="tile-label"><span>Pronouns</span><small>Used in notifications and little messages.</small></div>
+            <div class="segmented" role="group" aria-label="Pronouns">
+              <button type="button" data-g="she">she / her</button>
+              <button type="button" data-g="he">he / him</button>
+            </div>
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="sparkle"></span>
+            <div class="tile-label"><span>Size</span><small>How big your crow is on the desktop.</small></div>
+            <div class="slider-field">
+              <input id="scale" type="range" min="0.6" max="1.6" step="0.05" aria-label="Size" />
+              <output id="sizeValue"></output>
+            </div>
+          </div>
+        </div>
+        <div class="group">
+          <div class="group-head">
+            <h2>Together so far</h2>
+            <p id="sinceLine"></p>
+          </div>
+          <div class="stats" id="stats"></div>
+        </div>
+      </section>
+
+      <section data-panel="friendship" hidden>
+        <div class="level-card">
+          <div class="ring">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ring-track" cx="60" cy="60" r="50"></circle>
+              <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="50" pathLength="100"></circle>
+            </svg>
+            <div class="ring-label"><b id="ringLevel"></b><span>level</span></div>
+          </div>
+          <div class="level-body">
+            <p class="eyebrow">Friendship</p>
+            <h2 id="levelTitle"></h2>
+            <p class="muted" id="levelHint"></p>
+            <div class="level-facts">
+              <div><b id="factPoints"></b><span>trust points</span></div>
+              <div><b id="factNext"></b><span id="factNextLabel"></span></div>
+              <div><b id="factStage"></b><span>stage</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-head">
+            <h2>The path</h2>
+            <p>Five stages of four levels each. Every stage changes how your crow behaves around you.</p>
+          </div>
+          <ol class="path" id="path"></ol>
+        </div>
+
+        <div class="group">
+          <div class="group-head">
+            <h2>Milestones</h2>
+            <p id="milestoneLine"></p>
+          </div>
+          <div class="milestones" id="milestones"></div>
+        </div>
+
+        <div class="group">
+          <div class="group-head">
+            <h2>How trust grows</h2>
+            <p>Points you earn right now, for each kind of moment together.</p>
+          </div>
+          <div class="gains" id="gains"></div>
+          <p class="note" id="gainsNote"></p>
+        </div>
+      </section>
+
+      <section data-panel="treasures" hidden>
+        <div class="summary" id="treasureSummary"></div>
+        <div class="group">
+          <div class="group-head">
+            <h2>Your treasures</h2>
+            <p id="treasureHint"></p>
+          </div>
+          <div class="treasures" id="treasures"></div>
+        </div>
+      </section>
+
+      <section data-panel="behavior" hidden>
+        <div class="group">
+          <div class="group-head">
+            <h2>Behaviour</h2>
+            <p>How your crow spends its days on your desktop.</p>
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="pulse"></span>
+            <div class="tile-label"><span>Activity</span><small>How busy the crow is.</small></div>
+            <select id="activity" aria-label="Activity">
+              <option value="calm">Calm</option>
+              <option value="normal">Normal</option>
+              <option value="lively">Lively</option>
+            </select>
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="cookie"></span>
+            <div class="tile-label"><span>Snacks and shiny things</span><small>How often something drops onto your desktop.</small></div>
+            <select id="spawnRate" aria-label="Snacks and shiny things">
+              <option value="off">Never</option>
+              <option value="rare">Rarely</option>
+              <option value="normal">Sometimes</option>
+              <option value="frequent">Often</option>
+            </select>
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="pointer"></span>
+            <div class="tile-label"><span>Reacts to the mouse pointer</span><small>Watches it, and at first shies away from it.</small></div>
+            <input id="cursorReactions" type="checkbox" class="switch" aria-label="Reacts to the mouse pointer" />
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="window"></span>
+            <div class="tile-label"><span>Perches on windows</span><small id="perchHint">Sits on the top edges of your windows, and rides along when you move them.</small></div>
+            <input id="windowPerching" type="checkbox" class="switch" aria-label="Perches on windows" />
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="monitor"></span>
+            <div class="tile-label"><span>Visits other monitors</span><small>Wanders onto every screen you have.</small></div>
+            <input id="multiMonitor" type="checkbox" class="switch" aria-label="Visits other monitors" />
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="music"></span>
+            <div class="tile-label"><span>Dances to your music</span><small id="musicHint"></small></div>
+            <input id="musicDance" type="checkbox" class="switch" aria-label="Dances to your music" />
+          </div>
+        </div>
+        <div class="group">
+          <div class="group-head">
+            <h2>Sound and notifications</h2>
+            <p>Caws, chirps and the little messages it sends you.</p>
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="volume"></span>
+            <div class="tile-label"><span>Sounds</span><small>Caws, chirps and flaps.</small></div>
+            <input id="sound" type="checkbox" class="switch" aria-label="Sounds" />
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="volume"></span>
+            <div class="tile-label"><span>Volume</span></div>
+            <div class="slider-field">
+              <input id="volume" type="range" min="0" max="1" step="0.05" aria-label="Volume" />
+              <output id="volumeValue"></output>
+            </div>
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="bell"></span>
+            <div class="tile-label"><span>Notifications</span><small>When a gift arrives, or trust grows.</small></div>
+            <input id="notifications" type="checkbox" class="switch" aria-label="Notifications" />
+          </div>
+        </div>
+      </section>
+
+      <section data-panel="system" hidden>
+        <div class="group">
+          <div class="group-head">
+            <h2>System</h2>
+            <p>Startup and where your crow's memories are kept.</p>
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="power"></span>
+            <div class="tile-label"><span>Start with my computer</span><small>Your crow is there when you sign in.</small></div>
+            <input id="autostart" type="checkbox" class="switch" aria-label="Start with my computer" />
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="rose"></span>
+            <div class="tile-label"><span>Animated decorations</span><small>Growing brambles, swaying roses and falling petals in this window.</small></div>
+            <input id="motion" type="checkbox" class="switch" aria-label="Animated decorations" />
+          </div>
+          <div class="tile">
+            <span class="ico" data-icon="folder"></span>
+            <div class="tile-label"><span>Save data</span><small class="path-text" id="dataDir"></small></div>
+            <button class="btn btn-secondary" id="openData" type="button">Open folder</button>
+          </div>
+        </div>
+        <div class="group">
+          <div class="group-head">
+            <h2>Start over</h2>
+            <p>This cannot be undone.</p>
+          </div>
+          <div class="tile tile-danger">
+            <span class="ico" data-icon="reset"></span>
+            <div class="tile-label"><span>Reset crow</span><small id="resetHint">Says goodbye to your crow and forgets its name, trust and treasures.</small></div>
+            <button class="btn btn-danger" id="reset" type="button">Reset…</button>
+          </div>
+        </div>
+        <div class="about">
+          <div class="about-art" id="aboutArt"></div>
+          <div class="about-body">
+            <b>Desktop Crow</b>
+            <span id="aboutVersion"></span>
+            <span>Made by <strong>tordev</strong> · MIT licence</span>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="../../app-dist/settings.bundle.js"></script>
+  </body>
+</html>

@@ -1,0 +1,74 @@
+appId: com.desktopcrow.app
+productName: Desktop Crow
+copyright: Copyright (c) 2026 tordev
+directories:
+  output: dist
+  buildResources: build
+files:
+  - package.json
+  - src/**/*
+  - app-dist/**/*
+  - assets/**/*
+  - "!**/*.map"
+  - "!**/*.md"
+  - "!node_modules/koffi/src/**/*.{cc,hh,inc,S,asm,def,txt}"
+  - "!node_modules/koffi/lib/**"
+  - "!node_modules/koffi/doc/**"
+  - "!node_modules/koffi/vendor/**"
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "src/main/win-media.ps1"
+compression: normal
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: "Desktop-Crow-Setup-${version}.${ext}"
+  signAndEditExecutable: true
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Desktop Crow
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  uninstallDisplayName: Desktop Crow
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  executableName: desktop-crow
+  syncDesktopName: true
+  icon: build/icons
+  category: Game
+  synopsis: A crow that lives on your desktop
+  description: >-
+    Desktop Crow is a small pet crow that walks, hops and flies around your
+    desktop, perches on your windows and taskbar, eats the snacks that turn up
+    and, once it trusts you, brings you shiny gifts. Made by tordev.
+  executableArgs:
+    - "--ozone-platform=x11"
+  artifactName: "Desktop-Crow-${version}-x86_64.${ext}"
+  desktop:
+    entry:
+      Name: Desktop Crow
+      Comment: A crow that lives on your desktop
+      Categories: Game;Amusement;
+      StartupWMClass: desktop-crow
+
+appImage:
+  artifactName: "Desktop-Crow-${version}-x86_64.${ext}"
+
+deb:
+  artifactName: "desktop-crow_${version}_amd64.${ext}"
+  packageCategory: games

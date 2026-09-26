@@ -1,0 +1,38 @@
+{
+  "name": "desktop-crow",
+  "productName": "Desktop Crow",
+  "version": "1.3.0",
+  "description": "A crow that lives on your desktop. It walks, hops, flies, perches on your windows and taskbar, eats snacks and brings you shiny gifts.",
+  "main": "src/main/main.js",
+  "desktopName": "desktop-crow.desktop",
+  "author": {
+    "name": "tordev",
+    "email": "desktop-crow@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/desktop-crow/desktop-crow",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "bundle": "node scripts/bundle.js",
+    "start": "node scripts/bundle.js && electron .",
+    "start:diag": "node scripts/bundle.js && electron . --diag",
+    "test": "node --test --test-concurrency=4 \"test/*.test.js\"",
+    "test:quick": "node --test test/rig.test.js test/text.test.js test/affection.test.js test/milestones.test.js test/save.test.js test/world.test.js test/qa.test.js",
+    "test:matrix": "node test/matrix.js",
+    "test:soak": "node test/soak.js all 1800 1-24",
+    "test:e2e:win": "node test/e2e/win-e2e.js",
+    "qa:sheets": "node scripts/bundle.js && electron scripts/qa-render.js",
+    "icons": "node scripts/bundle.js && electron scripts/make-icons.js",
+    "dist:win": "node scripts/bundle.js && electron-builder --win nsis --x64 --publish never",
+    "dist:linux": "node scripts/bundle.js && electron-builder --linux AppImage --x64 --publish never",
+    "dist:linux:deb": "node scripts/bundle.js && electron-builder --linux deb --x64 --publish never"
+  },
+  "dependencies": {
+    "koffi": "3.3.1"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2"
+  }
+}
