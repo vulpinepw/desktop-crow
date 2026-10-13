@@ -6,9 +6,10 @@ const { Crow } = require('./crow');
 const { Brain, EAT_OFFSET } = require('./brain');
 const { createRng } = require('./rng');
 const { CAM } = require('./dims');
-const { ITEM_TYPES, TREATS, createItem, stepItem, pickSpawnType, hitTestItem, keepOnFloor } = require('./items');
+const { ITEM_TYPES, TREATS, GRAVITY, createItem, stepItem, pickSpawnType, hitTestItem, keepOnFloor } = require('./items');
 const { computeRig, hitTest, worldBounds, toWorld } = require('./rig');
 const { ANNOY } = require('./affection');
+const { DROP } = require('./care');
 
 const SPAWN_INTERVALS = Object.freeze({ off: null, rare: [480, 900], normal: [180, 480], frequent: [60, 180] });
 const MAX_WORLD_ITEMS = 5;
@@ -16,7 +17,7 @@ const ITEM_LIFETIME_S = 15 * 60;
 const COLLECT_TIME = 0.8;
 const DRAG_START_PX = 6;
 const HELD_ITEM_Z = 16;
-const DEFAULT_SETTINGS = Object.freeze({ scale: 1, spawnRate: 'normal', activity: 'normal', cursorReactions: true, windowPerching: true, multiMonitor: true, musicDance: true });
+const DEFAULT_SETTINGS = Object.freeze({ scale: 1, spawnRate: 'normal', activity: 'normal', cursorReactions: true, windowPerching: true, multiMonitor: true, musicDance: true, droppings: true });
 const BOX = Object.freeze({ w: 76, d: 56, h: 44, open: 0.6, stay: 5, fade: 1 });
 
 class Sim {
@@ -48,6 +49,8 @@ class Sim {
     this.boxed = false;
     this.music = null;
     this.bubble = null;
+    this.droppings = [];
+    this.dropSeq = 1;
   }
 
   emit(e) {
@@ -137,6 +140,7 @@ class Sim {
         this.box.y = p.y;
       }
     }
+    for (const d of this.droppings) this.keepDroppingOnScreen(d);
     this.afterWorldChange(prev);
     if (this.crow) this.crow.onDisplaysChanged();
   }
@@ -201,6 +205,7 @@ class Sim {
       this.cursorVel.y += (vy - this.cursorVel.y) * a;
     }
     this.cursor = { x, y };
+    if (this.drag && this.drag.kind === 'scrub') this.stepScrub(x, y);
     this.checkPress();
   }
 
@@ -230,7 +235,137 @@ class Sim {
     if (best) return best;
     const rig = this.crowRig();
     if (rig && hitTest(rig, x, y, 3)) return { kind: 'crow' };
+    const d = this.droppingAt(x, y);
+    if (d) return { kind: 'dropping', dropping: d };
     return null;
+  }
+
+  droppingAt(x, y, pad = 4) {
+    const k = this.k;
+    for (let i = this.droppings.length - 1; i >= 0; i--) {
+      const d = this.droppings[i];
+      if (d.gone || d.z > 0) continue;
+      const rx = (DROP.r * d.size + 4) * k + pad;
+      const ry = (DROP.r * d.size * 0.62 + 4) * k + pad;
+      const dx = (x - d.x) / rx;
+      const dy = (y - d.y) / ry;
+      if (dx * dx + dy * dy <= 1) return d;
+    }
+    return null;
+  }
+
+  keepDroppingOnScreen(d) {
+    const w = this.world;
+    const disp = w.displayAt(d.x, d.y) || w.nearestDisplay(d.x, d.y);
+    if (!disp) return;
+    const b = disp.bounds;
+    const m = 12 * this.k;
+    d.x = M.clamp(d.x, b.x + m, b.x + b.width - m);
+    d.y = M.clamp(d.y, b.y + m, b.y + b.height - m);
+  }
+
+  addDropping(x, y, z = 0, opts = {}) {
+    const d = {
+      id: `d${this.dropSeq++}`,
+      x,
+      y,
+      z: Math.max(0, z),
+      vz: 0,
+      seed: Number.isFinite(opts.seed) ? opts.seed : this.rng.int(0, 1e6),
+      size: Number.isFinite(opts.size) ? opts.size : this.rng.range(0.85, 1.2),
+      age: Number.isFinite(opts.age) ? opts.age : 0,
+      dirt: 1,
+      splat: z > 0 ? 0 : 1,
+      gone: 0,
+      scrubT: -1e9,
+    };
+    this.keepDroppingOnScreen(d);
+    this.droppings.push(d);
+    return d;
+  }
+
+  activeDroppings() {
+    return this.droppings.filter((d) => !d.gone);
+  }
+
+  restoreDroppings(list) {
+    this.droppings = [];
+    for (const p of list || []) {
+      if (this.droppings.length >= DROP.max) break;
+      if (Number.isFinite(p.x) && Number.isFinite(p.y)) this.addDropping(p.x, p.y, 0, { seed: p.seed, size: p.size, age: p.age });
+    }
+  }
+
+  savedDroppings() {
+    return this.activeDroppings().map((d) => ({ x: Math.round(d.x * 10) / 10, y: Math.round(d.y * 10) / 10, seed: d.seed, size: Math.round(d.size * 1000) / 1000, age: Math.round(d.age) }));
+  }
+
+  clearDroppings() {
+    this.droppings = [];
+    if (this.drag && this.drag.kind === 'scrub') this.drag = null;
+  }
+
+  rubDropping(d, amount) {
+    if (!d || d.gone) return;
+    d.dirt = Math.max(0, d.dirt - amount);
+    d.scrubT = this.time;
+    if (d.dirt <= 0) this.cleanDropping(d);
+  }
+
+  cleanDropping(d) {
+    d.gone = 1e-3;
+    const left = this.activeDroppings().length;
+    this.fx.push({ kind: 'sparkleBurst', x: d.x, y: d.y - 4 * this.k, seed: this.rng.int(0, 1e6) });
+    this.emit({ type: 'sound', name: 'clean' });
+    this.emit({ type: 'cleaned', id: d.id, left });
+    if (this.brain) this.brain.onCleaned(left);
+  }
+
+  stepScrub(x, y) {
+    const s = this.drag;
+    const k = this.k;
+    const dist = Math.min(Math.hypot(x - s.x, y - s.y), DROP.maxStep * k);
+    s.x = x;
+    s.y = y;
+    if (dist <= 0) return;
+    s.moved += dist;
+    const d = this.droppingAt(x, y, 10 * k);
+    if (!d) return;
+    this.rubDropping(d, dist / (DROP.scrubPx * Math.max(0.75, k)));
+    s.rub += dist;
+    if (s.rub - s.lastFx > 16 * k) {
+      s.lastFx = s.rub;
+      this.fx.push({ kind: 'bubbles', x, y, seed: this.rng.int(0, 1e6) });
+    }
+    if (s.rub - s.lastSound > 70 * k) {
+      s.lastSound = s.rub;
+      this.emit({ type: 'sound', name: 'scrub' });
+    }
+  }
+
+  stepDroppings(dt) {
+    const k = this.k;
+    for (let i = this.droppings.length - 1; i >= 0; i--) {
+      const d = this.droppings[i];
+      if (d.gone) {
+        d.gone += dt / DROP.cleanTime;
+        if (d.gone >= 1) this.droppings.splice(i, 1);
+        continue;
+      }
+      if (d.z > 0) {
+        d.vz -= GRAVITY * dt;
+        d.z = Math.max(0, d.z + d.vz * dt);
+        if (d.z <= 0) {
+          d.vz = 0;
+          d.splat = 1e-3;
+          this.emit({ type: 'sound', name: 'splat' });
+          this.fx.push({ kind: 'splatter', x: d.x, y: d.y, seed: d.seed, k });
+        }
+        continue;
+      }
+      if (d.splat < 1) d.splat = Math.min(1, d.splat + dt / DROP.splatTime);
+      if (!this.hidden && !this.paused && !this.boxed) d.age += dt;
+    }
   }
 
   interactiveAt(x, y) {
@@ -271,6 +406,10 @@ class Sim {
       this.press = { x, y, t: this.time };
       return 'crow';
     }
+    if (hit.kind === 'dropping') {
+      this.drag = { kind: 'scrub', id: hit.dropping.id, x, y, moved: 0, rub: 0, lastFx: 0, lastSound: -1e9 };
+      return 'dropping';
+    }
     return null;
   }
 
@@ -309,6 +448,17 @@ class Sim {
       if (c) c.release(this.cursorVel.x, this.cursorVel.y);
       this.brain.onReleased();
       this.emit({ type: 'crowReleased' });
+      return;
+    }
+    if (d.kind === 'scrub') {
+      if (d.moved < DRAG_START_PX) {
+        const target = this.droppings.find((q) => q.id === d.id && !q.gone);
+        if (target) {
+          this.rubDropping(target, DROP.clickWipe);
+          this.fx.push({ kind: 'bubbles', x, y, seed: this.rng.int(0, 1e6) });
+          this.emit({ type: 'sound', name: 'scrub' });
+        }
+      }
       return;
     }
     const it = this.items.get(d.itemId);
@@ -678,6 +828,13 @@ class Sim {
       case 'peckHit':
         this.fx.push({ kind: 'dust', x: e.x, y: e.y, seed: this.rng.int(0, 1e6) });
         break;
+      case 'pooped': {
+        if (this.settings.droppings === false) break;
+        const d = this.addDropping(e.x, e.y, e.z);
+        if (this.brain) this.brain.onPooped();
+        this.emit({ type: 'pooped', id: d.id, x: d.x, y: d.y });
+        break;
+      }
       case 'away':
         if (this.hiding) {
           this.hiding = false;
@@ -798,6 +955,7 @@ class Sim {
       }
     }
     this.stepBox(dt);
+    this.stepDroppings(dt);
     this.brain.update(dt);
     this.crow.step(dt);
     this.toasts = this.toasts.filter((t) => this.time - t.t0 < t.dur);
@@ -839,6 +997,9 @@ class Sim {
     for (const it of this.items.values()) {
       if (it.state === 'falling' || it.state === 'held' || it.glide || it.collect > 0 || it.fade > 0 || (it.appear != null && it.appear < 1)) return 'fast';
     }
+    for (const d of this.droppings) {
+      if (d.gone || d.z > 0 || d.splat < 1 || this.time - d.scrubT < 0.4) return 'fast';
+    }
     if (this.box) return 'medium';
     if (!c || !c.visible || c.state === 'away') return 'slow';
     if (this.bubble) return 'medium';
@@ -854,6 +1015,7 @@ class Sim {
       case 'reactSpawn':
       case 'held':
       case 'dance':
+      case 'poop':
         return 'fast';
       case 'walk':
         return Math.hypot(c.vx, c.vy / CAM.F) > 50 * this.k ? 'fast' : 'medium';
@@ -895,6 +1057,7 @@ class Sim {
             carry: p.carry,
             emote: p.emote,
             shadow: p.shadow,
+            ill: p.ill || 0,
             state: c.state,
           }
         : null;
@@ -923,7 +1086,8 @@ class Sim {
     const box = b ? { x: b.x, y: b.y, state: b.state, open: b.open, alpha: b.alpha, age: this.time - b.born, seed: b.seed, w: BOX.w, d: BOX.d, h: BOX.h } : null;
     const u = this.bubble;
     const bubble = u && crow ? { kind: u.kind, value: u.value, age: this.time - u.t0, dur: u.dur } : null;
-    return { t: this.time, crow, items, toasts, box, bubble, k: this.k, pace: this.pace() };
+    const droppings = this.droppings.map((d) => ({ id: d.id, x: d.x, y: d.y, z: d.z, seed: d.seed, size: d.size, dirt: d.dirt, splat: d.splat, gone: d.gone, wet: Math.max(0, 1 - (this.time - d.scrubT) / 0.6) }));
+    return { t: this.time, crow, items, toasts, box, bubble, droppings, k: this.k, pace: this.pace() };
   }
 
   activeBounds() {
@@ -938,6 +1102,11 @@ class Sim {
       const d = ITEM_TYPES[it.type];
       const top = it.y - (it.z || 0) * CAM.H - d.h * k - 60 * k;
       rects.push({ x: it.x - d.w * k - 30 * k, y: top, width: d.w * k * 2 + 60 * k, height: it.y + 12 * k - top });
+    }
+    for (const d of this.droppings) {
+      const r = (DROP.r * d.size + 24) * k;
+      const top = d.y - d.z * CAM.H - r;
+      rects.push({ x: d.x - r, y: top, width: r * 2, height: d.y + r - top });
     }
     return rects;
   }

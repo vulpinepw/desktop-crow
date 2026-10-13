@@ -3,6 +3,7 @@
 const { sanitizeName, sanitizeGender } = require('./text');
 const { clampAffection, dateKey } = require('./affection');
 const { ITEM_TYPES } = require('./items');
+const { DROP, GUT, CARE } = require('./care');
 
 const SAVE_VERSION = 3;
 
@@ -21,6 +22,7 @@ const SETTINGS_DEFAULTS = Object.freeze({
   multiMonitor: true,
   autostart: false,
   musicDance: true,
+  droppings: true,
 });
 
 const SPAWN_RATES = ['off', 'rare', 'normal', 'frequent'];
@@ -32,7 +34,8 @@ function defaultSave(nowMs = Date.now()) {
     crow: { name: 'Poe', gender: 'she', setupComplete: false, createdAt: nowMs },
     affection: { value: 0, carry: 0, lastFedAt: null, lastDecayCheck: null, manualFeeds: [], dailyManual: null, dailyPassive: null, dailyPet: null },
     gifts: { inventory: {}, history: [], pending: [], lastGiftAt: null, today: null, awakeSinceCheck: 0 },
-    mood: { hunger: 0.35, energy: 0.9, happiness: 0.6, at: null },
+    mood: { hunger: 0.35, energy: 0.9, happiness: 0.6, health: 1, gut: GUT.start, at: null },
+    droppings: [],
     stats: {
       itemsEaten: 0,
       handFed: 0,
@@ -43,6 +46,8 @@ function defaultSave(nowMs = Date.now()) {
       shiniesFound: 0,
       pets: 0,
       dances: 0,
+      droppings: 0,
+      cleaned: 0,
       clicks: 0,
       flights: 0,
       naps: 0,
@@ -106,7 +111,16 @@ function normalizeSave(raw, nowMs = Date.now()) {
   out.mood.hunger = num(mo.hunger, d.mood.hunger, 0, 1);
   out.mood.energy = num(mo.energy, d.mood.energy, 0, 1);
   out.mood.happiness = num(mo.happiness, d.mood.happiness, 0, 1);
+  out.mood.health = num(mo.health, d.mood.health, CARE.floor, 1);
+  out.mood.gut = num(mo.gut, d.mood.gut, 0, GUT.max);
   out.mood.at = ts(mo.at);
+
+  out.droppings = Array.isArray(src.droppings)
+    ? src.droppings
+        .filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
+        .slice(0, DROP.max)
+        .map((p) => ({ x: p.x, y: p.y, seed: int(p.seed, 1, 0, 1e7), size: num(p.size, 1, 0.7, 1.4), age: num(p.age, 0, 0, 1e9) }))
+    : [];
 
   const g = obj(src.gifts);
   const inv = obj(g.inventory);
@@ -157,6 +171,7 @@ function normalizeSave(raw, nowMs = Date.now()) {
   out.settings.multiMonitor = bool(se.multiMonitor, SETTINGS_DEFAULTS.multiMonitor);
   out.settings.autostart = bool(se.autostart, SETTINGS_DEFAULTS.autostart);
   out.settings.musicDance = bool(se.musicDance, SETTINGS_DEFAULTS.musicDance);
+  out.settings.droppings = bool(se.droppings, SETTINGS_DEFAULTS.droppings);
 
   const app = obj(src.app);
   out.app.hidden = bool(app.hidden, false);

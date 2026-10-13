@@ -36,6 +36,21 @@ function createFx() {
       parts.push({ kind: 'feather', x: e.x, y: e.y, vx: rng.range(-20, 20), vy: -30, g: 40, life: 1.6, age: 0, size: 7 * k, sway: rng.range(0, 6) });
     } else if (e.kind === 'heart') {
       parts.push({ kind: 'heart', x: e.x, y: e.y, vx: 0, vy: -28, g: 0, life: 1.2, age: 0, size: 5 * k });
+    } else if (e.kind === 'splatter') {
+      const s = e.k || 1;
+      for (let i = 0; i < 6; i++) {
+        const a = rng.range(Math.PI * 0.9, Math.PI * 2.1);
+        const sp = rng.range(30, 70) * s;
+        parts.push({ kind: 'splash', x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6 - 20 * s, g: 380 * s, life: rng.range(0.25, 0.4), age: 0, size: rng.range(0.8, 1.5) * s * k, floor: e.y + rng.range(1, 4) * s });
+      }
+    } else if (e.kind === 'bubbles') {
+      for (let i = 0; i < 3; i++) {
+        parts.push({ kind: 'bubble', x: e.x + rng.range(-6, 6), y: e.y + rng.range(-4, 4), vx: rng.range(-18, 18), vy: rng.range(-34, -12), g: -6, life: rng.range(0.55, 0.95), age: 0, size: rng.range(1.6, 3.6) * k });
+      }
+    } else if (e.kind === 'puff') {
+      for (let i = 0; i < 4; i++) {
+        parts.push({ kind: 'puff', x: e.x + rng.range(-2, 2), y: e.y + rng.range(-2, 2), vx: rng.range(8, 26) * rng.sign(), vy: rng.range(-22, -8), g: 0, life: rng.range(0.45, 0.7), age: 0, size: rng.range(1.4, 2.4) * k });
+      }
     }
     if (parts.length > 300) parts.splice(0, parts.length - 300);
   }
@@ -102,6 +117,32 @@ function createFx() {
         ctx.stroke();
       } else if (p.kind === 'heart') {
         drawHeart(ctx, p.x, p.y, p.size, '#e2476b');
+      } else if (p.kind === 'splash') {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = '#fbfbf6';
+        ctx.fill();
+        ctx.lineWidth = 0.6;
+        ctx.strokeStyle = 'rgba(78, 82, 92, 0.6)';
+        ctx.stroke();
+      } else if (p.kind === 'bubble') {
+        const r = p.size * (1 + p.age * 0.6);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(214, 236, 255, 0.35)';
+        ctx.fill();
+        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = 'rgba(90, 150, 210, 0.85)';
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(p.x - r * 0.35, p.y - r * 0.35, r * 0.28, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fill();
+      } else if (p.kind === 'puff') {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (1 + p.age * 2.2), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(176, 200, 140, 0.55)';
+        ctx.fill();
       }
       ctx.restore();
     }

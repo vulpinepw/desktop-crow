@@ -17,6 +17,7 @@ function createPreview(canvas, opts = {}) {
   const rng = createRng(opts.seed || 7);
   let cssW = 0;
   let cssH = 0;
+  const care = { ill: false, sick: 0 };
 
   function build() {
     const dpr = window.devicePixelRatio || 1;
@@ -30,6 +31,9 @@ function createPreview(canvas, opts = {}) {
     const x = (a.x0 + a.x1) / 2;
     const y = a.ok ? (a.y0 + a.y1) / 2 : cssH - 16 * k;
     crow = new Crow({ world, rng, getItem: () => null, emit: () => {}, cursor: () => null, annoyed: () => false }, { scale: k, x, y, h: 0.25 });
+    crow.ill = care.ill;
+    crow.illV = care.ill ? 1 : 0;
+    crow.sick = care.sick;
   }
 
   function act() {
@@ -74,7 +78,7 @@ function createPreview(canvas, opts = {}) {
     ctx.translate(-crow.x, -crow.y);
     ctx.fillRect(0, -cssH, cssW, cssH * 3);
     ctx.restore();
-    drawCrow(ctx, crow.pose);
+    drawCrow(ctx, crow.pose, { time: now / 1000 });
     raf = requestAnimationFrame(frame);
   }
 
@@ -88,6 +92,12 @@ function createPreview(canvas, opts = {}) {
     },
     caw() {
       crow.caw('caw');
+    },
+    setCare(ill, sick) {
+      care.ill = !!ill;
+      care.sick = Math.max(0, Math.min(1, Number(sick) || 0));
+      crow.ill = care.ill;
+      crow.sick = care.sick;
     },
     destroy() {
       cancelAnimationFrame(raf);

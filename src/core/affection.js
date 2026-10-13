@@ -2,7 +2,7 @@
 
 const { GIFT_TYPES_BY_RARITY } = require('./items');
 
-const AFFECTION_MAX = 1000;
+const AFFECTION_MAX = 2500;
 
 const TIERS = Object.freeze([
   Object.freeze({ key: 'wary', name: 'Wary', min: 0 }),
@@ -12,8 +12,13 @@ const TIERS = Object.freeze([
   Object.freeze({ key: 'bonded', name: 'Bonded', min: 700 }),
 ]);
 
-const LEVEL_MINS = Object.freeze([0, 20, 45, 70, 100, 135, 170, 210, 250, 295, 345, 395, 450, 510, 570, 635, 700, 775, 850, 930]);
+const LEVEL_MINS = Object.freeze([
+  0, 20, 45, 70, 100, 135, 170, 210, 250, 295, 345, 395, 450, 510, 570, 635, 700, 775, 850, 930,
+  1000, 1035, 1070, 1105, 1145, 1185, 1225, 1265, 1310, 1355, 1400, 1445, 1490, 1540, 1590,
+  1640, 1690, 1740, 1795, 1850, 1905, 1960, 2015, 2075, 2135, 2195, 2255, 2320, 2385, 2450,
+]);
 const MAX_LEVEL = LEVEL_MINS.length;
+const CLASSIC_LEVELS = 20;
 
 const GAINS = Object.freeze({
   eatSpawned: 1,
@@ -25,6 +30,7 @@ const GAINS = Object.freeze({
 });
 
 const CURVE_K = 1400;
+const CURVE_END = 1000;
 
 const MANUAL_FEED_WINDOW_MS = 15 * 60 * 1000;
 const REPEAT_FACTOR = 0.7;
@@ -97,9 +103,13 @@ function levelInfo(value) {
   };
 }
 
+function curveFactor(value) {
+  return Math.max(0, 1 - Math.min(Math.max(0, Number(value) || 0), CURVE_END) / CURVE_K);
+}
+
 function effectiveGain(base, value) {
   if (base <= 0) return base;
-  return Math.max(1, Math.round(base * (1 - value / CURVE_K)));
+  return Math.max(1, Math.round(base * curveFactor(value)));
 }
 
 function dateKey(ms) {
@@ -136,7 +146,7 @@ function todayPoints(state, nowMs) {
 function rawGain(state, kind, nowMs, before) {
   const base = GAINS[kind];
   if (base == null) throw new Error(`unknown affection event ${kind}`);
-  let gain = base * Math.max(0, 1 - before / CURVE_K);
+  let gain = base * curveFactor(before);
   if (kind === 'feedTray' || kind === 'feedHand') {
     const recent = (state.manualFeeds || []).filter((t) => nowMs - t < MANUAL_FEED_WINDOW_MS);
     gain = Math.max(1, gain * Math.pow(REPEAT_FACTOR, recent.length));
@@ -223,8 +233,11 @@ module.exports = {
   TIERS,
   LEVEL_MINS,
   MAX_LEVEL,
+  CLASSIC_LEVELS,
   GAINS,
   CURVE_K,
+  CURVE_END,
+  curveFactor,
   MANUAL_FEED_WINDOW_MS,
   REPEAT_FACTOR,
   DAILY_FULL,

@@ -6,10 +6,10 @@ const { defaultPose, hipLocal, headFrame, headLocal } = require('./rig');
 const { ITEM_TYPES } = require('./items');
 
 const ANIM_STATES = Object.freeze([
-  'idle', 'walk', 'hop', 'fly', 'land', 'perch', 'eat', 'sleep', 'peck', 'giftDrop', 'reactClick', 'reactSpawn', 'held', 'dance', 'pet',
+  'idle', 'walk', 'hop', 'fly', 'land', 'perch', 'eat', 'sleep', 'peck', 'giftDrop', 'reactClick', 'reactSpawn', 'held', 'dance', 'pet', 'poop',
 ]);
 
-const GROUND = ['idle', 'walk', 'hop', 'perch', 'eat', 'sleep', 'peck', 'giftDrop', 'reactClick', 'reactSpawn', 'dance', 'pet'];
+const GROUND = ['idle', 'walk', 'hop', 'perch', 'eat', 'sleep', 'peck', 'giftDrop', 'reactClick', 'reactSpawn', 'dance', 'pet', 'poop'];
 
 const TRANSITIONS = Object.freeze({
   idle: new Set([...GROUND, 'fly', 'held']),
@@ -26,6 +26,7 @@ const TRANSITIONS = Object.freeze({
   reactSpawn: new Set([...GROUND, 'fly', 'held']),
   dance: new Set([...GROUND, 'fly', 'held']),
   pet: new Set([...GROUND, 'fly', 'held']),
+  poop: new Set([...GROUND, 'fly', 'held']),
   held: new Set(['fly']),
   away: new Set(['fly']),
 });
@@ -119,6 +120,9 @@ class Crow {
     this.blinkPhase = 0;
     this.lookAroundT = 0;
     this.visible = true;
+    this.sick = 0;
+    this.ill = 0;
+    this.illV = 0;
     this.shift = { dx: 0, dy: 0 };
     this.pendingShift = { dx: 0, dy: 0 };
     this.transitions = [];
@@ -207,10 +211,11 @@ class Crow {
 
   caw(kind = 'caw') {
     if (this.state === 'sleep' || this.state === 'away') return;
-    this.cawT = kind === 'chirp' ? 0.16 : 0.34;
+    this.cawT = kind === 'chirp' ? 0.16 : kind === 'cough' ? 0.3 : 0.34;
     this.cawKind = kind;
     this.emit('sound', { name: kind });
     if (kind === 'chirp') this.showEmote('note', 1);
+    if (kind === 'cough') this.showEmote('sick', 1.5);
   }
 
   flinch() {
@@ -507,22 +512,23 @@ class Crow {
 
   standTargets(extra) {
     const t = this.stateTime;
+    const s = this.sick || 0;
     this.setT({
-      hipH: D.hipStand + 0.35 * Math.sin((t * Math.PI * 2) / 3.2),
+      hipH: D.hipStand + 0.35 * Math.sin((t * Math.PI * 2) / 3.2) - 0.8 * s,
       pitch: 0.04,
-      headX: D.headIdle.x,
-      headY: D.headIdle.y,
-      headA: 0.1,
+      headX: D.headIdle.x - 1.2 * s,
+      headY: D.headIdle.y + 2.4 * s,
+      headA: 0.1 + 0.12 * s,
       headYaw: 0,
       beak: 0,
       lookX: 0.3,
-      lookY: 0,
+      lookY: 0.25 * s,
       wing: 0,
       flapBase: 0,
       flapAmp: 0,
-      tailA: 0.03 * Math.sin(t * 1.3),
+      tailA: 0.03 * Math.sin(t * 1.3) - 0.08 * s,
       tailFan: 0,
-      fluff: 0,
+      fluff: 0.5 * s,
     });
     if (extra) this.setT(extra);
   }
@@ -880,6 +886,9 @@ class Crow {
       case 'pet':
         this.enter('pet', { duration: a.duration });
         break;
+      case 'poop':
+        this.enter('poop', {});
+        break;
       default:
         this.action = null;
         this.enter('idle', { duration: 0 });
@@ -966,6 +975,8 @@ class Crow {
   }
 
   ambient(dt) {
+    this.illV += ((this.ill ? 1 : 0) - this.illV) * Math.min(1, dt * 2.5);
+    if (Math.abs(this.illV - (this.ill ? 1 : 0)) < 1e-3) this.illV = this.ill ? 1 : 0;
     const awake = !(this.state === 'sleep' && this.st.phase !== 'wake');
     if (awake && this.state !== 'away') {
       this.blinkT -= dt;
@@ -984,8 +995,15 @@ class Crow {
     if (this.emote && !this.emote.loop && this.time - this.emote.t0 > this.emote.dur) this.emote = null;
     if (this.cawT > 0) {
       this.cawT -= dt;
-      this.ct.beak = this.cawKind === 'chirp' ? 0.5 : 0.95;
-      this.ct.headA -= this.cawKind === 'chirp' ? 0.1 : 0.3;
+      if (this.cawKind === 'cough') {
+        const jerk = Math.abs(Math.sin(Math.max(0, this.cawT) * 21));
+        this.ct.beak = 0.55;
+        this.ct.headA += 0.25 * jerk;
+        this.ct.headY += 1.4 * jerk;
+      } else {
+        this.ct.beak = this.cawKind === 'chirp' ? 0.5 : 0.95;
+        this.ct.headA -= this.cawKind === 'chirp' ? 0.1 : 0.3;
+      }
       this.om.beak = 34;
     }
   }
@@ -2376,6 +2394,46 @@ class Crow {
     return true;
   }
 
+  ventFloor() {
+    const p = this.c.pitch;
+    const bx = -13.5;
+    const by = -6.5;
+    const lx = bx * Math.cos(p) - by * Math.sin(p);
+    const ly = -this.c.hipH + bx * Math.sin(p) + by * Math.cos(p);
+    const [x, y] = this.localToFloor(lx, 0);
+    return { x, y, z: Math.max(2, -ly) * this.k + (this.z || 0) };
+  }
+
+  enter_poop() {
+    this.vx = 0;
+    this.vy = 0;
+    this.st.pt = 0;
+    this.st.dropped = false;
+  }
+
+  update_poop(dt) {
+    const st = this.st;
+    st.pt += dt;
+    const t = st.pt;
+    this.holdHeading(dt);
+    if (t < 0.6) {
+      this.standTargets({ hipH: D.hipStand - 1.6, pitch: 0.17, headX: D.headIdle.x + 1.4, headY: D.headIdle.y + 2.6, headA: 0.14, lookY: 0.25, tailA: 0.5, tailFan: 0.35, fluff: 0.32 });
+      this.setOm({ pitch: 8, hipH: 9, tailA: 10, tailFan: 10 });
+    } else if (t < 1.05) {
+      const f = Math.sin((t - 0.6) * 34);
+      this.standTargets({ hipH: D.hipStand - 0.7, pitch: 0.07, tailA: 0.16 + 0.2 * f, tailFan: 0.12, fluff: 0.5 + 0.12 * f });
+      this.setOm({ tailA: 24, fluff: 18, pitch: 9 });
+    } else {
+      this.standTargets();
+    }
+    if (!st.dropped && t >= 0.55) {
+      st.dropped = true;
+      this.emit('pooped', this.ventFloor());
+    }
+    const settled = this.settleFeet();
+    if (settled && (t > 1.3 || (this.queue.length && t > 1.05))) st.done = true;
+  }
+
   enter_reactSpawn(p) {
     this.vx = 0;
     this.vy = 0;
@@ -2625,6 +2683,7 @@ class Crow {
       p.emote = { kind: e.kind, t, a };
     } else p.emote = null;
     p.shadow = 1;
+    p.ill = this.illV;
     return p;
   }
 

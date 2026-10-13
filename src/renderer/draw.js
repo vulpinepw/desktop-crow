@@ -201,13 +201,142 @@ function drawEyes(ctx, rig) {
   }
 }
 
-function drawHead(ctx, rig, pose) {
+function thermometerAlpha(pose) {
+  const ill = pose.ill || 0;
+  if (ill <= 0.01 || pose.carry) return 0;
+  if (pose.state === 'eat' || pose.state === 'peck' || pose.state === 'giftDrop') return 0;
+  return ill * (1 - smooth(0.18, 0.42, pose.beak || 0));
+}
+
+function drawThermometer(ctx, rig, alpha) {
+  const t = rig.thermo;
+  const dx = t.b[0] - t.a[0];
+  const dy = t.b[1] - t.a[1];
+  const len = Math.hypot(dx, dy);
+  if (len < 4 || alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha *= alpha * smooth(4, 8, len);
+  ctx.translate(t.a[0], t.a[1]);
+  ctx.rotate(Math.atan2(dy, dx));
+  ctx.beginPath();
+  ctx.roundRect(-1, -1.25, len + 1, 2.5, 1.25);
+  ctx.fillStyle = '#f5f9fc';
+  ctx.fill();
+  ctx.lineWidth = 0.6;
+  ctx.strokeStyle = '#5b6576';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.roundRect(0, -0.42, len * 0.62, 0.84, 0.42);
+  ctx.fillStyle = '#e23b3b';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(70, 80, 95, 0.75)';
+  ctx.lineWidth = 0.35;
+  for (let x = len * 0.3; x < len * 0.9; x += 1.6) {
+    ctx.beginPath();
+    ctx.moveTo(x, -1.2);
+    ctx.lineTo(x, -0.55);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.roundRect(len - 1.4, -1.35, 2.2, 2.7, 1.1);
+  ctx.fillStyle = '#cfd6df';
+  ctx.fill();
+  ctx.lineWidth = 0.5;
+  ctx.strokeStyle = '#5b6576';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(len * 0.45, -0.75, len * 0.28, 0.28, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawIceBag(ctx, rig, alpha, time) {
+  const b = rig.iceBag;
+  if (alpha <= 0.01) return;
+  const s = b.r / 9;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.translate(b.x, b.y);
+  ctx.rotate(Math.atan2(b.uy, b.ux) + Math.PI / 2);
+  ctx.scale((b.fx < 0 ? -1 : 1) * s, s);
+  const sway = Math.sin((time || 0) * 1.7) * 0.05;
+  ctx.rotate(-0.12 + sway);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-8.8, -1.4);
+  ctx.bezierCurveTo(-9.6, -5.6, -4.6, -8.2, 0.8, -8);
+  ctx.bezierCurveTo(6.2, -7.8, 9.9, -5.2, 9.4, -1.2);
+  ctx.bezierCurveTo(9.1, 1.4, 6.2, 2.4, 0.6, 2.2);
+  ctx.bezierCurveTo(-4.8, 2, -8.3, 1.4, -8.8, -1.4);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, -8, 0, 2.4);
+  grad.addColorStop(0, '#b9e3ff');
+  grad.addColorStop(1, '#5aa9e3');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.lineWidth = 0.9;
+  ctx.strokeStyle = '#25618f';
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(37, 97, 143, 0.55)';
+  ctx.lineWidth = 0.6;
+  for (const [x0, y0, x1, y1, cx, cy] of [[-5.5, -1.2, -1.5, -5.6, -4.2, -4.2], [-0.6, 0.2, 3.6, -5.8, 2.2, -2.4], [4.4, 0.4, 7.4, -3.8, 6.8, -1.2]]) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(cx, cy, x1, y1);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.ellipse(1.8, -5.9, 3.6, 1.15, -0.12, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-8.6, -3.6);
+  ctx.lineTo(-10.6, -4.6);
+  ctx.lineTo(-10.6, -0.6);
+  ctx.lineTo(-8.8, -1.1);
+  ctx.closePath();
+  ctx.fillStyle = '#7fbfe9';
+  ctx.fill();
+  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = '#25618f';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.roundRect(-14.2, -5.4, 3.8, 5.6, 1.1);
+  ctx.fillStyle = '#eef0f3';
+  ctx.fill();
+  ctx.strokeStyle = '#5b6576';
+  ctx.lineWidth = 0.75;
+  ctx.stroke();
+  ctx.lineWidth = 0.45;
+  for (const y of [-4.1, -2.6, -1.1]) {
+    ctx.beginPath();
+    ctx.moveTo(-13.8, y);
+    ctx.lineTo(-10.8, y);
+    ctx.stroke();
+  }
+  const drip = ((time || 0) * 0.45) % 1;
+  ctx.globalAlpha *= Math.sin(drip * Math.PI);
+  ctx.beginPath();
+  const dy = 2.6 + drip * 3.2;
+  ctx.moveTo(6.4, dy - 1.6);
+  ctx.quadraticCurveTo(7.4, dy, 6.4, dy + 0.9);
+  ctx.quadraticCurveTo(5.4, dy, 6.4, dy - 1.6);
+  ctx.fillStyle = '#9fd3fb';
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawHead(ctx, rig, pose, time) {
   const n = rig.neck;
   strokeLine(ctx, [[n.x0, n.y0], [n.x1, n.y1]], n.w, PALETTE.body);
   const b = rig.beak;
   const beakFirst = b.faceToCam < -0.25;
   const conv = 1 - smooth(0, 0.2, Math.abs(b.faceToCam + 0.25));
+  const thermo = thermometerAlpha(pose);
   const carry = () => {
+    if (thermo > 0.01) drawThermometer(ctx, rig, thermo);
     if (!pose.carry || !art.drawItemShape) return;
     ctx.save();
     ctx.translate(rig.carryPt[0], rig.carryPt[1]);
@@ -276,7 +405,10 @@ function drawCrow(ctx, pose, opts = {}) {
     else if (part.name === 'body') drawBody(ctx, rig);
     else if (part.name === 'wingL') drawWing(ctx, rig, 'L', part.d);
     else if (part.name === 'wingR') drawWing(ctx, rig, 'R', part.d);
-    else if (part.name === 'head') drawHead(ctx, rig, pose);
+    else if (part.name === 'head') {
+      drawHead(ctx, rig, pose, opts.time);
+      if ((pose.ill || 0) > 0.01) drawIceBag(ctx, rig, pose.ill, opts.time);
+    }
     order.push(part.name);
   }
   ctx.restore();

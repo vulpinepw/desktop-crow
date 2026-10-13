@@ -39,6 +39,7 @@ function defaultPose() {
     carry: null,
     emote: null,
     shadow: 1,
+    ill: 0,
   };
 }
 
@@ -495,6 +496,11 @@ function computeRig(pose) {
   const cf = proj(fr, fwd[0], fwd[1], fwd[2]);
   const carryAng = Math.atan2(cf[1], Math.abs(cf[0]) < 1e-6 ? 1e-6 : cf[0]);
   const emotePt = [head.x + 5, head.y - head.r - 13];
+  const upv = proj(fr, up[0], up[1], up[2]);
+  const upl = Math.hypot(upv[0], upv[1]) || 1;
+  const crown = P(headLocal(hf, -1.2, -hf.r * 0.9, 0));
+  const iceBag = { x: crown[0], y: crown[1], ux: upv[0] / upl, uy: upv[1] / upl, fx: cf[0], fy: cf[1], r: hf.r };
+  const thermo = { a: P(headLocal(hf, 11.5, 1.6, 1.2)), b: P(headLocal(hf, 22.5, 10.2, 3.9)) };
 
   const z = pose.z || 0;
   const k = pose.k || 1;
@@ -528,6 +534,11 @@ function computeRig(pose) {
     l.toes.front.forEach(add);
     l.toes.back.forEach(add);
   }
+  if ((pose.ill || 0) > 0.01) {
+    add(thermo.b);
+    add([crown[0] - 17, crown[1] - 14]);
+    add([crown[0] + 17, crown[1] + 7]);
+  }
 
   const sideSep = clamp(Math.abs(fr.cz) * 1.6, 0, 1);
 
@@ -559,6 +570,8 @@ function computeRig(pose) {
     carryPt,
     carryAng,
     emotePt,
+    iceBag,
+    thermo,
     shadow,
     bbox: { x0: x0 - 2, y0: y0 - 2, x1: x1 + 2, y1: y1 + 2 },
   };

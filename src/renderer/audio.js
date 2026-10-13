@@ -154,6 +154,24 @@ function createAudio() {
     thud(t0) {
       tone(t0, 180, 0.07, 'sine', 0.16, 0.6);
     },
+    splat(t0) {
+      tone(t0, 210, 0.09, 'sine', 0.2, 0.45);
+      noise(t0, 0.07, 900, 1.1, 0.12, master);
+    },
+    scrub(t0) {
+      noise(t0, 0.1, 2600, 0.9, 0.1, master);
+      noise(t0 + 0.05, 0.08, 3400, 1.2, 0.07, master);
+    },
+    clean(t0) {
+      tone(t0, 1568, 0.14, 'sine', 0.13);
+      tone(t0 + 0.06, 2093, 0.16, 'sine', 0.12);
+      tone(t0 + 0.12, 2637, 0.24, 'sine', 0.11);
+    },
+    cough(t0) {
+      noise(t0, 0.08, 1250, 1.4, 0.24, master);
+      tone(t0, 330, 0.06, 'triangle', 0.08, 0.7);
+      noise(t0 + 0.13, 0.07, 1050, 1.4, 0.18, master);
+    },
   };
 
   function play(name, volume = 0.5) {

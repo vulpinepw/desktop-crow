@@ -20,7 +20,7 @@ const STAGES = [
   'Watches you closely, and only hops aside when your pointer comes very near.',
   'Stops shying away, wanders over when your pointer rests nearby, and starts bringing you gifts.',
   'Brings gifts twice as often, and rare or even legendary treasures become possible.',
-  'Brings gifts most often, with the best odds of rare and legendary treasures. You are {poss} favourite human.',
+  'Brings gifts most often, with the best odds of rare and legendary treasures. You are {poss} favourite human. Levels 21 to 50 are for the closest friends: every one of them is earned together.',
 ];
 
 const TIER_HINTS = [
@@ -30,6 +30,8 @@ const TIER_HINTS = [
   '{name} trusts you. Gifts come more often, and sometimes rare ones.',
   '{name} and you are bonded. You are {poss} favourite human.',
 ];
+const BEYOND_HINT = '{name} and you are closer than ever. Every level from here to {max} is a sign of a lifelong friendship.';
+const MAX_HINT = '{name} and you are friends for life. There is no higher level.';
 
 const MOOD_TEXT = {
   hungry: '{name} is hungry. Drop a snack by {obj}, or use Feed in the tray menu.',
@@ -37,9 +39,11 @@ const MOOD_TEXT = {
   sad: '{name} feels a bit down. A snack or some petting would help.',
   happy: '{name} is really happy right now.',
   satisfied: '{name} has eaten well and feels satisfied.',
+  sick: '{name} is not feeling well. Clean up {poss} droppings and keep {obj} fed; {subj} will get better.',
+  messy: '{name} does not like the mess. Press on a dropping and rub it away with your pointer.',
   content: '{name} is doing fine.',
 };
-const MOOD_ICON = { hungry: 'cookie', tired: 'moon', sad: 'rain', happy: 'heart', satisfied: 'smile', content: 'smile' };
+const MOOD_ICON = { hungry: 'cookie', tired: 'moon', sad: 'rain', happy: 'heart', satisfied: 'smile', sick: 'thermometer', messy: 'droplet', content: 'smile' };
 
 const STAT_CELLS = [
   ['cookie', (st) => st.itemsEaten, () => 'snacks eaten'],
@@ -48,6 +52,9 @@ const STAT_CELLS = [
   ['calendar', (st) => st.daysActive, (v) => (v === 1 ? 'day together' : 'days together')],
   ['feather', (st) => st.flights, () => 'flights'],
   ['moon', (st) => st.naps, () => 'naps'],
+  ['hand', (st) => st.pets, (v) => (v === 1 ? 'petting' : 'pettings')],
+  ['music', (st) => st.dances, (v) => (v === 1 ? 'dance' : 'dances')],
+  ['droplet', (st) => st.cleaned, (v) => (v === 1 ? 'dropping cleaned' : 'droppings cleaned')],
 ];
 
 let state = null;
@@ -128,7 +135,9 @@ function renderMood(s) {
   const now = m.now || 'content';
   document.querySelector('.mood-card').dataset.mood = now;
   $('moodTitle').textContent = s.boxed ? 'Waiting in the box' : MOOD_LABELS[now] || now;
-  $('moodLine').textContent = s.boxed ? fill('{name} is still in the box. Click it on your desktop to let {obj} out.', crow) : fill(MOOD_TEXT[now] || MOOD_TEXT.content, crow);
+  const n = s.droppings || 0;
+  const mess = n ? ` ${n === 1 ? 'There is 1 dropping' : `There are ${n} droppings`} on your screen.` : '';
+  $('moodLine').textContent = s.boxed ? fill('{name} is still in the box. Click it on your desktop to let {obj} out.', crow) : fill(MOOD_TEXT[now] || MOOD_TEXT.content, crow) + (now === 'messy' || now === 'sick' ? mess : '');
   if (changed('moodFace', [now, s.boxed])) {
     const face = $('moodFace');
     face.textContent = '';
@@ -138,6 +147,7 @@ function renderMood(s) {
     ['full', 'Fullness', 1 - m.hunger],
     ['energy', 'Energy', m.energy],
     ['happy', 'Happiness', m.happiness],
+    ['health', 'Health', m.health == null ? 1 : m.health],
   ];
   const host = $('moodBars');
   if (!host.children.length) {
@@ -200,7 +210,8 @@ function renderFriendship(s, L, tier, p) {
   $('ringFill').style.strokeDashoffset = String(100 - L.progress * 100);
   $('ringLevel').textContent = String(L.level);
   $('levelTitle').textContent = `Level ${L.level} · ${tier.name}`;
-  $('levelHint').textContent = fill(TIER_HINTS[L.tierIndex] || '', crow);
+  const hint = L.level >= A.MAX_LEVEL ? MAX_HINT : L.level > A.CLASSIC_LEVELS ? BEYOND_HINT : TIER_HINTS[L.tierIndex] || '';
+  $('levelHint').textContent = fill(hint, crow, { max: A.MAX_LEVEL });
   $('factPoints').textContent = String(L.value);
   $('factNext').textContent = L.next == null ? 'Max' : String(L.toNext);
   $('factNextLabel').textContent = L.next == null ? 'highest level' : `to level ${L.level + 1}`;
@@ -263,7 +274,7 @@ function renderFriendship(s, L, tier, p) {
     grid.textContent = '';
     for (const [name, label, kind] of rows) {
       const src = A.SOURCE[kind];
-      let g = A.GAINS[kind] * Math.max(0, 1 - L.value / A.CURVE_K);
+      let g = A.GAINS[kind] * A.curveFactor(L.value);
       if (over(src)) g *= A.OVER_DAILY[src];
       const shown = g >= 1.95 ? String(Math.round(g)) : String(Math.max(0.1, Math.round(g * 10) / 10));
       const row = h('div', over(src) ? 'gain slowed' : 'gain');
@@ -275,7 +286,7 @@ function renderFriendship(s, L, tier, p) {
     grid.appendChild(annoy);
     const F = A.DAILY_FULL;
     $('gainsNote').textContent = fill(
-      `Points shrink a little as trust grows, and feeding again within ${Math.round(A.MANUAL_FEED_WINDOW_MS / 60000)} minutes counts for less. Each day the first ${F.feeding} points from feeding, ${F.snacks} from snacks {subj} finds and ${F.petting} from petting count in full; after that, feeding and petting count half and found snacks a quarter, so trust never stops growing. After ${A.DECAY.graceDays} days without food, trust starts to fade, a little more each day.`,
+      `Points shrink a little as trust grows, up to ${A.CURVE_END} trust points, and feeding again within ${Math.round(A.MANUAL_FEED_WINDOW_MS / 60000)} minutes counts for less. Each day the first ${F.feeding} points from feeding, ${F.snacks} from snacks {subj} finds and ${F.petting} from petting count in full; after that, feeding and petting count half and found snacks a quarter, so trust never stops growing. After ${A.DECAY.graceDays} days without food, trust starts to fade, a little more each day.`,
       crow
     );
   }
@@ -349,6 +360,7 @@ function renderSettings(s) {
   $('windowPerching').checked = s.settings.windowPerching;
   $('multiMonitor').checked = s.settings.multiMonitor;
   $('musicDance').checked = s.settings.musicDance !== false;
+  $('droppings').checked = s.settings.droppings !== false;
   const mus = s.music;
   let hint = 'When Spotify, Deezer, YouTube Music or a music video on YouTube is playing.';
   if (s.settings.musicDance === false) hint = 'Off: your crow ignores the music you play.';
@@ -385,6 +397,7 @@ function render(s) {
     previewScale = k;
     preview.setScale(k);
   }
+  if (preview && s.mood) preview.setCare(!s.boxed && s.mood.ill, Math.max(0, Math.min(1, (0.5 - (s.mood.health == null ? 1 : s.mood.health)) / 0.4)));
 }
 
 async function patch(p) {
@@ -454,7 +467,7 @@ $('volume').addEventListener('input', () => {
 });
 $('volume').addEventListener('change', () => patch({ volume: +$('volume').value }));
 for (const id of ['activity', 'spawnRate']) $(id).addEventListener('change', () => patch({ [id]: $(id).value }));
-for (const id of ['cursorReactions', 'windowPerching', 'multiMonitor', 'musicDance', 'sound', 'notifications', 'autostart']) $(id).addEventListener('change', () => patch({ [id]: $(id).checked }));
+for (const id of ['cursorReactions', 'windowPerching', 'multiMonitor', 'musicDance', 'droppings', 'sound', 'notifications', 'autostart']) $(id).addEventListener('change', () => patch({ [id]: $(id).checked }));
 $('motion').addEventListener('change', () => setMotion($('motion').checked));
 $('openData').addEventListener('click', () => ui.openDataFolder());
 $('reset').addEventListener('click', async () => {

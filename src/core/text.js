@@ -7,7 +7,7 @@ const PRONOUNS = Object.freeze({
 
 const DEFAULT_NAMES = Object.freeze(['Poe', 'Edgar', 'Morrigan', 'Corvina', 'Russet', 'Onyx', 'Pip', 'Hugin', 'Munin', 'Soot']);
 
-const MOOD_LABELS = Object.freeze({ hungry: 'Hungry', tired: 'Tired', happy: 'Happy', satisfied: 'Satisfied', sad: 'Sad', content: 'Content' });
+const MOOD_LABELS = Object.freeze({ hungry: 'Hungry', tired: 'Tired', happy: 'Happy', satisfied: 'Satisfied', sad: 'Sad', sick: 'Sick', messy: 'Messy', content: 'Content' });
 
 const MAX_NAME = 24;
 
@@ -32,6 +32,9 @@ const STRINGS = Object.freeze({
   tierUpBody: '{Subj} seems {tier} now.',
   levelUpToast: 'Friendship level {level}!',
   tierUpToast: 'Level {level}: {name} is {tier} now!',
+  maxLevelToast: 'Level {level}! {name} is your friend for life.',
+  poopHintToast: 'Oops! Press on it and rub to clean it up.',
+  allCleanToast: 'All clean! {name} is relieved.',
   fedToast: '{name} gobbles it up!',
   handFedToast: '{name} takes it right from you!',
   welcomeToast: 'Hi! I’m {name}.',

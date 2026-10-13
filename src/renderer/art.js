@@ -2,6 +2,7 @@
 
 const { ITEM_TYPES } = require('../core/items');
 const { CAM } = require('../core/dims');
+const { createRng } = require('../core/rng');
 
 function pathPoly(ctx, pts) {
   ctx.beginPath();
@@ -117,6 +118,27 @@ function drawEmote(ctx, emote, x, y, k) {
       ctx.fillStyle = '#2d2f3a';
       ctx.fillText('♪', x, y + bob + 0.5 * k);
       break;
+    case 'sick': {
+      drawBubble(ctx, x, y + bob, r);
+      const cy = y + bob;
+      ctx.fillStyle = '#a3d36a';
+      ctx.beginPath();
+      ctx.arc(x, cy, 4.7 * k * pop, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#2f5d1e';
+      ctx.lineWidth = 0.95 * k;
+      ctx.lineCap = 'round';
+      for (const dx of [-1.7, 1.7]) {
+        ctx.beginPath();
+        ctx.arc(x + dx * k, cy - 0.6 * k, 0.95 * k, Math.PI * 1.1, Math.PI * 1.9);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.moveTo(x - 2.3 * k, cy + 2 * k);
+      for (let i = 1; i <= 4; i++) ctx.lineTo(x - 2.3 * k + i * 1.15 * k, cy + (i % 2 ? 1.3 : 2) * k);
+      ctx.stroke();
+      break;
+    }
     case 'sleep': {
       ctx.fillStyle = 'rgba(235, 240, 255, 0.95)';
       ctx.strokeStyle = 'rgba(25, 27, 35, 0.9)';
@@ -532,6 +554,152 @@ function drawItem(ctx, item, k, time = 0) {
   }
 }
 
+const DROP_WHITE = '#fbfbf6';
+const DROP_EDGE = 'rgba(78, 82, 92, 0.55)';
+const shapeCache = new Map();
+
+function droppingShape(seed, size) {
+  const key = `${seed}:${size}`;
+  const hit = shapeCache.get(key);
+  if (hit) return hit;
+  const rng = createRng((seed || 1) + 7);
+  const R = 7.5 * size;
+  const F = CAM.F;
+  const pts = [];
+  const n = 14;
+  const arms = new Set([rng.int(0, n - 1), rng.int(0, n - 1), rng.int(0, n - 1)]);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + rng.range(-0.1, 0.1);
+    const r = R * (arms.has(i) ? rng.range(1.12, 1.32) : rng.range(0.62, 1.0));
+    pts.push([Math.cos(a) * r, Math.sin(a) * r * F]);
+  }
+  const blobs = [];
+  const nb = rng.int(3, 5);
+  for (let i = 0; i < nb; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    const d = R * rng.range(1.2, 1.7);
+    blobs.push({ x: Math.cos(a) * d, y: Math.sin(a) * d * F, r: rng.range(0.6, 1.4) * size });
+  }
+  const ca = rng.range(0, Math.PI * 2);
+  const cd = R * rng.range(0.12, 0.3);
+  const core = { x: Math.cos(ca) * cd, y: Math.sin(ca) * cd * F, rx: R * rng.range(0.26, 0.34), ry: R * rng.range(0.16, 0.22), rot: rng.range(-0.9, 0.9) };
+  const specks = [];
+  for (let i = 0; i < 3; i++) {
+    const a = core.rot + rng.range(-1.2, 1.2) + (i % 2 ? Math.PI : 0);
+    const d = core.rx * rng.range(0.7, 1.25);
+    specks.push({ x: core.x + Math.cos(a) * d, y: core.y + Math.sin(a) * d * 0.7, r: core.ry * rng.range(0.45, 0.8) });
+  }
+  const shape = { R, pts, blobs, core, specks };
+  if (shapeCache.size > 64) shapeCache.clear();
+  shapeCache.set(key, shape);
+  return shape;
+}
+
+function drawFallingDrop(ctx, d, k) {
+  const s = (d.size || 1) * k;
+  const y = d.y - d.z * CAM.H;
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = '#000000';
+  ctx.beginPath();
+  ctx.ellipse(d.x, d.y, 2.6 * s, 1.4 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.translate(d.x, y);
+  ctx.beginPath();
+  ctx.moveTo(0, -4 * s);
+  ctx.bezierCurveTo(2.4 * s, -0.8 * s, 2.4 * s, 2.4 * s, 0, 2.4 * s);
+  ctx.bezierCurveTo(-2.4 * s, 2.4 * s, -2.4 * s, -0.8 * s, 0, -4 * s);
+  ctx.fillStyle = DROP_WHITE;
+  ctx.fill();
+  ctx.lineWidth = 0.8 * k;
+  ctx.strokeStyle = DROP_EDGE;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawDropping(ctx, d, k) {
+  const out = d.gone ? Math.max(0, 1 - d.gone) : 1;
+  if (out <= 0.01) return;
+  if (d.z > 0) {
+    drawFallingDrop(ctx, d, k);
+    return;
+  }
+  const appear = d.splat == null ? 1 : Math.min(1, d.splat);
+  const pop = appear >= 1 ? 1 : 0.35 + 0.65 * Math.sin(appear * Math.PI * 0.5) + 0.12 * Math.sin(appear * Math.PI);
+  const dirt = d.dirt == null ? 1 : Math.max(0, Math.min(1, d.dirt));
+  const s = droppingShape(d.seed, d.size || 1);
+  const F = CAM.F;
+  ctx.save();
+  ctx.translate(d.x, d.y);
+  ctx.scale(k * pop, k * pop);
+  const wet = Math.max((1 - dirt) * 0.8, d.wet || 0) * out;
+  if (wet > 0.02) {
+    ctx.save();
+    ctx.globalAlpha = 0.24 * wet;
+    ctx.fillStyle = '#9fb4c8';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s.R * 1.5, s.R * 1.5 * F, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  const shrink = 0.62 + 0.38 * dirt;
+  ctx.scale(shrink, shrink);
+  ctx.globalAlpha = out * (0.3 + 0.7 * dirt);
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+  ctx.shadowBlur = 2.5;
+  ctx.shadowOffsetY = 0.8;
+  pathSmooth(ctx, s.pts);
+  const grad = ctx.createRadialGradient(-s.R * 0.25, -s.R * 0.25 * F, s.R * 0.1, 0, 0, s.R * 1.05);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(1, '#e7e8e1');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  for (const b of s.blobs) {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fillStyle = DROP_WHITE;
+    ctx.fill();
+  }
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = 0.75;
+  ctx.strokeStyle = DROP_EDGE;
+  pathSmooth(ctx, s.pts);
+  ctx.stroke();
+  for (const b of s.blobs) {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = out * dirt * dirt;
+  ctx.fillStyle = '#3d3f2c';
+  ctx.beginPath();
+  ctx.ellipse(s.core.x, s.core.y, s.core.rx, s.core.ry, s.core.rot, 0, Math.PI * 2);
+  ctx.fill();
+  for (const p of s.specks) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.ellipse(s.core.x, s.core.y, s.core.rx * 1.45, s.core.ry * 1.6, s.core.rot, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(120, 124, 92, 0.22)';
+  ctx.fill();
+  ctx.globalAlpha = out * (0.3 + 0.7 * dirt);
+  ctx.beginPath();
+  ctx.ellipse(-s.R * 0.42, -s.R * 0.3 * F, s.R * 0.26, s.R * 0.1, -0.25, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.fill();
+  ctx.restore();
+}
+
+function droppingBounds(d, k) {
+  const r = (7.5 * (d.size || 1) * 1.7 + 4) * k;
+  const top = d.y - (d.z || 0) * CAM.H - r;
+  return { x0: d.x - r, y0: top, x1: d.x + r, y1: d.y + r * CAM.F + 3 * k };
+}
+
 function drawSparkles(ctx, x, y, r, time, alpha, k) {
   ctx.save();
   for (let i = 0; i < 3; i++) {
@@ -724,7 +892,7 @@ function boxBounds(box, k) {
   return { x0: Math.min(...xs) - 8 * k, y0: Math.min(...ys) - 10 * k, x1: Math.max(...xs) + 8 * k, y1: Math.max(...ys) + 10 * k };
 }
 
-const MOOD_COLORS = Object.freeze({ hungry: '#f59e0b', tired: '#6366f1', happy: '#ec4899', satisfied: '#22c55e', sad: '#3b82f6', content: '#14b8a6' });
+const MOOD_COLORS = Object.freeze({ hungry: '#f59e0b', tired: '#6366f1', happy: '#ec4899', satisfied: '#22c55e', sad: '#3b82f6', sick: '#84cc16', messy: '#a8a29e', content: '#14b8a6' });
 
 function moodIcon(ctx, kind, x, y, s) {
   ctx.save();
@@ -762,6 +930,34 @@ function moodIcon(ctx, kind, x, y, s) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('z', s * 0.38, -s * 0.34);
+  } else if (kind === 'sick') {
+    ctx.beginPath();
+    ctx.roundRect(-s * 0.11, -s * 0.48, s * 0.22, s * 0.68, s * 0.11);
+    ctx.fillStyle = '#eef0f3';
+    ctx.fill();
+    ctx.lineWidth = s * 0.07;
+    ctx.strokeStyle = '#6b7280';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, s * 0.27, s * 0.19, 0, Math.PI * 2);
+    ctx.fillStyle = '#ef4444';
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-s * 0.05, -s * 0.12, s * 0.1, s * 0.3);
+    ctx.strokeStyle = c;
+    ctx.lineWidth = s * 0.08;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(s * 0.26, -s * 0.36);
+    ctx.quadraticCurveTo(s * 0.34, -s * 0.28, s * 0.3, -s * 0.18);
+    ctx.quadraticCurveTo(s * 0.26, -s * 0.08, s * 0.34, 0);
+    ctx.stroke();
+  } else if (kind === 'messy') {
+    ctx.save();
+    ctx.scale(s / 17, s / 17);
+    drawDropping(ctx, { x: 0, y: 2, z: 0, seed: 5, size: 1, dirt: 1, splat: 1 }, 1);
+    ctx.restore();
   } else if (kind === 'sad') {
     ctx.fillStyle = '#9aa7ba';
     ctx.beginPath();
@@ -869,6 +1065,8 @@ module.exports = {
   drawEmote,
   drawItemShape,
   drawItem,
+  drawDropping,
+  droppingBounds,
   drawSparkles,
   drawBox,
   boxBounds,

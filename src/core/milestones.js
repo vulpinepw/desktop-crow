@@ -1,7 +1,7 @@
 'use strict';
 
 const { GIFT_TYPES_BY_RARITY } = require('./items');
-const { TIERS, MAX_LEVEL, levelOf } = require('./affection');
+const { TIERS, MAX_LEVEL, CLASSIC_LEVELS, levelOf } = require('./affection');
 
 const GIFT_KINDS = Object.freeze([...GIFT_TYPES_BY_RARITY.common, ...GIFT_TYPES_BY_RARITY.uncommon, ...GIFT_TYPES_BY_RARITY.rare, ...GIFT_TYPES_BY_RARITY.legendary]);
 const BONDED_MIN = TIERS[TIERS.length - 1].min;
@@ -21,8 +21,11 @@ const MILESTONES = Object.freeze([
   { key: 'flights', icon: 'feather', title: 'Frequent flyer', text: '{name} takes 100 flights.', target: 100, of: (s) => s.stats.flights },
   { key: 'goodCrow', icon: 'hand', title: 'Good crow', text: 'Pet {name} 10 times.', target: 10, of: (s) => s.stats.pets },
   { key: 'dancePartner', icon: 'music', title: 'Dance partner', text: '{name} dances to your music 5 times.', target: 5, of: (s) => s.stats.dances },
+  { key: 'tidyNest', icon: 'droplet', title: 'Tidy nest', text: 'Clean up 25 of {name}’s droppings.', target: 25, of: (s) => s.stats.cleaned },
   { key: 'bonded', icon: 'rose', title: 'Bonded', text: 'Reach the Bonded stage.', target: BONDED_MIN, of: (s) => s.affection },
-  { key: 'bestFriends', icon: 'crown', title: 'Best friends', text: `Reach friendship level ${MAX_LEVEL}.`, target: MAX_LEVEL, of: (s) => levelOf(s.affection) },
+  { key: 'bestFriends', icon: 'crown', title: 'Best friends', text: `Reach friendship level ${CLASSIC_LEVELS}.`, target: CLASSIC_LEVELS, of: (s) => levelOf(s.affection) },
+  { key: 'kindred', icon: 'sun', title: 'Kindred spirits', text: 'Reach friendship level 35.', target: 35, of: (s) => levelOf(s.affection) },
+  { key: 'forLife', icon: 'infinity', title: 'Friends for life', text: `Reach friendship level ${MAX_LEVEL}.`, target: MAX_LEVEL, of: (s) => levelOf(s.affection) },
 ]);
 
 function evaluateMilestones(input) {

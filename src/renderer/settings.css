@@ -852,6 +852,16 @@ option::checkmark {
   color: #86efac;
 }
 
+.mood-card[data-mood="sick"] .mood-face {
+  background: rgba(132, 204, 22, 0.15);
+  color: #bef264;
+}
+
+.mood-card[data-mood="messy"] .mood-face {
+  background: rgba(168, 162, 158, 0.16);
+  color: #d6d3d1;
+}
+
 .mood-body {
   flex: 1;
   min-width: 0;
@@ -870,8 +880,8 @@ option::checkmark {
 
 .mood-bars {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
   margin-top: 12px;
 }
 
@@ -899,6 +909,10 @@ option::checkmark {
 
 .mood-happy .progress > i {
   background: linear-gradient(90deg, #db2777, #f9a8d4);
+}
+
+.mood-health .progress > i {
+  background: linear-gradient(90deg, #65a30d, #bef264);
 }
 
 .level-card {
@@ -1518,7 +1532,8 @@ option::checkmark {
     grid-template-columns: 1fr;
   }
   .stats,
-  .summary {
+  .summary,
+  .mood-bars {
     grid-template-columns: repeat(2, 1fr);
   }
   input[type="range"] {

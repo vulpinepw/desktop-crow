@@ -34,7 +34,11 @@ class Game {
 
   moodSave() {
     const m = this.sim.brain.moodState();
-    return { hunger: m.hunger, energy: m.energy, happiness: m.happiness, at: this.now() };
+    return { hunger: m.hunger, energy: m.energy, happiness: m.happiness, health: m.health, gut: m.gut, at: this.now() };
+  }
+
+  syncDroppings() {
+    this.save.droppings = this.sim.savedDroppings();
   }
 
   emit(e) {
@@ -65,6 +69,8 @@ class Game {
       this.unplaced = s.gifts.pending.map((p) => ({ type: p.type, x: p.x, y: p.y }));
     }
     if (s.mood) this.sim.brain.restoreMood(s.mood, s.mood.at ? this.now() - s.mood.at : 0);
+    if (s.settings.droppings !== false) this.sim.restoreDroppings(s.droppings);
+    this.syncDroppings();
     this.dailyUpdate();
     if (s.app.paused) this.sim.setPaused(true);
     if (s.app.hidden) {
@@ -99,6 +105,7 @@ class Game {
     this.markDirty();
     if (r.levelAfter > r.levelBefore) {
       if (r.tierAfter > r.tierBefore) this.sim.toast('tierUpToast', 4, { level: r.levelAfter, tier: A.TIERS[r.tierAfter].name.toLowerCase() });
+      else if (r.levelAfter >= A.MAX_LEVEL) this.sim.toast('maxLevelToast', 5, { level: r.levelAfter });
       else this.sim.toast('levelUpToast', 3.2, { level: r.levelAfter });
     }
     if (r.tierAfter > r.tierBefore) {
@@ -159,6 +166,7 @@ class Game {
       s.position = sim.savedPosition() || s.position;
       s.mood = this.moodSave();
       this.syncPending();
+      this.syncDroppings();
     }
   }
 
@@ -216,6 +224,20 @@ class Game {
       case 'danced':
         st.dances++;
         this.markDirty();
+        this.emit({ type: 'stats' });
+        break;
+      case 'pooped':
+        st.droppings++;
+        this.syncDroppings();
+        this.markDirty();
+        if (st.droppings <= 3) this.sim.toast('poopHintToast', 4.5);
+        this.emit({ type: 'stats' });
+        break;
+      case 'cleaned':
+        st.cleaned++;
+        this.syncDroppings();
+        this.markDirty();
+        if (e.left === 0) this.sim.toast('allCleanToast', 3.2);
         this.emit({ type: 'stats' });
         break;
       case 'boxed':
@@ -312,7 +334,15 @@ class Game {
   applySettings(partial) {
     Object.assign(this.save.settings, partial);
     this.sim.applySettings(this.save.settings);
+    if (partial.droppings === false) {
+      this.sim.clearDroppings();
+      this.syncDroppings();
+    }
     this.markDirty();
+  }
+
+  cleanAll() {
+    for (const d of this.sim.activeDroppings()) this.sim.cleanDropping(d);
   }
 
   summary() {
@@ -325,6 +355,7 @@ class Game {
       level: A.levelInfo(s.affection.value),
       today: A.todayPoints(s.affection, this.now()),
       mood: this.sim.brain ? this.sim.brain.moodState() : null,
+      droppings: this.sim.activeDroppings().length,
       music: this.sim.music,
       boxed: this.sim.boxed,
       stats: Object.assign({}, s.stats),

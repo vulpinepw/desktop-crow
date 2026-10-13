@@ -4,6 +4,7 @@ const M = require('./math');
 const { CAM } = require('./dims');
 const { ITEM_TYPES } = require('./items');
 const { hitTest, toWorld } = require('./rig');
+const { DROP, GUT, CARE, sickness, isMessy } = require('./care');
 
 const DWELL = Object.freeze({ calm: [4, 12], normal: [2, 7], lively: [0.8, 3.5] });
 const FLEE_RADIUS = Object.freeze([130, 80, 0, 0, 0]);
@@ -43,10 +44,19 @@ class Brain {
     this.lastMood = 'content';
     this.sayT = 20;
     this.remindT = 0;
+    this.health = 1;
+    this.sick = 0;
+    this.messy = 0;
+    this.gut = GUT.start;
+    this.poopT = GUT.gap * 0.6;
+    this.poopAt = 1.1;
+    this.coughT = 30;
   }
 
   mood() {
+    if (this.health <= CARE.sick) return 'sick';
     if (this.hunger >= 0.72) return 'hungry';
+    if (this.messy > 0) return 'messy';
     if (this.energy <= 0.22) return 'tired';
     if (this.happiness <= 0.3) return 'sad';
     if (this.happiness >= 0.8) return 'happy';
@@ -64,13 +74,17 @@ class Brain {
         return 1 - this.happiness;
       case 'satisfied':
         return 1 - this.hunger;
+      case 'sick':
+        return 1 - this.health;
+      case 'messy':
+        return Math.min(1, this.messy / 3);
       default:
         return this.happiness;
     }
   }
 
   moodState() {
-    return { hunger: this.hunger, energy: this.energy, happiness: this.happiness, now: this.mood() };
+    return { hunger: this.hunger, energy: this.energy, happiness: this.happiness, health: this.health, messy: this.messy, gut: this.gut, ill: this.isIll(), now: this.mood() };
   }
 
   restoreMood(m, awayMs = 0) {
@@ -79,6 +93,94 @@ class Brain {
     if (Number.isFinite(m.hunger)) this.hunger = M.clamp(m.hunger + Math.min(0.4, hours * 0.08), 0, 0.8);
     if (Number.isFinite(m.energy)) this.energy = M.clamp(Math.max(m.energy, hours > 1 ? 0.85 : m.energy), 0, 1);
     if (Number.isFinite(m.happiness)) this.happiness = M.clamp(m.happiness, 0, 1);
+    if (Number.isFinite(m.health)) this.health = M.clamp(m.health + hours * CARE.awayGain, CARE.floor, 1);
+    if (Number.isFinite(m.gut)) this.gut = M.clamp(m.gut, 0, GUT.max);
+    this.sick = sickness(this.health);
+  }
+
+  updateCare(dt) {
+    const sim = this.sim;
+    const c = this.crow;
+    const present = !sim.hidden && !sim.boxed && !!c && c.visible && c.state !== 'away';
+    const asleep = !!c && c.state === 'sleep';
+    let mess = 0;
+    if (present && !sim.paused) for (const d of sim.droppings) if (isMessy(d)) mess++;
+    this.messy = mess;
+    if (mess > 0) {
+      this.health -= dt * CARE.healthLoss * mess;
+      this.happiness -= dt * CARE.happyLoss * mess;
+    } else if (present) {
+      this.health += dt * (asleep ? CARE.sleepGain : CARE.healthGain);
+    }
+    this.health = M.clamp(this.health, CARE.floor, 1);
+    this.sick = sickness(this.health);
+    if (c) {
+      c.sick = this.sick;
+      c.ill = this.isIll();
+    }
+    if (present && this.sick > 0) {
+      this.energy = Math.max(0, this.energy - dt * CARE.sickTire * this.sick);
+      this.happiness -= dt * CARE.sickLoss * this.sick;
+    }
+    this.happiness = M.clamp(this.happiness, 0, 1);
+    if (present && !asleep && !sim.paused) {
+      this.gut = Math.min(GUT.max, this.gut + dt * GUT.perSecond);
+      this.poopT += dt;
+    }
+    this.coughT -= dt;
+    if (present && this.sick > 0.25 && this.coughT <= 0) {
+      this.coughT = this.rnd().range(22, 55) / (0.5 + this.sick);
+      if (['idle', 'perch', 'walk'].includes(c.state) && !c.airborne && !sim.paused) this.cough();
+    }
+  }
+
+  isIll() {
+    return this.messy > 0 || this.health < CARE.unwell;
+  }
+
+  cough() {
+    const c = this.crow;
+    c.caw('cough');
+    const rig = this.sim.crowRig();
+    if (!rig) return;
+    const [bx, by] = toWorld(c.pose, rig.beak.tip[0], rig.beak.tip[1]);
+    this.sim.fx.push({ kind: 'puff', x: bx, y: by, seed: this.rnd().int(0, 1e6) });
+  }
+
+  wantsToPoop() {
+    const sim = this.sim;
+    if (sim.settings.droppings === false || sim.paused || sim.hidden || sim.boxed) return false;
+    if (this.gut < this.poopAt || this.poopT < GUT.gap) return false;
+    return sim.droppings.filter((d) => !d.gone).length < DROP.max;
+  }
+
+  onPooped() {
+    this.gut = Math.max(0, this.gut - 1);
+    this.poopT = 0;
+    this.poopAt = this.rnd().range(GUT.at[0], GUT.at[1]);
+    this.happiness = Math.min(1, this.happiness + 0.02);
+  }
+
+  onCleaned(left) {
+    this.happiness = Math.min(1, this.happiness + CARE.cleanHappy);
+    this.health = Math.min(1, this.health + CARE.cleanGain);
+    this.sick = sickness(this.health);
+    if (left === 0 && this.canSpeak() && this.crow.state !== 'sleep') this.crow.caw('chirp');
+  }
+
+  nearestMess() {
+    const c = this.crow;
+    let best = null;
+    let bestD = Infinity;
+    for (const d of this.sim.droppings) {
+      if (!isMessy(d)) continue;
+      const dist = floorDist(c.x, c.y, d.x, d.y);
+      if (dist < bestD) {
+        bestD = dist;
+        best = d;
+      }
+    }
+    return best;
   }
 
   canSpeak() {
@@ -93,6 +195,11 @@ class Brain {
     if (kind === 'content') kind = this.happiness >= 0.5 ? 'happy' : 'sad';
     this.sim.say(kind, this.moodValue(kind));
     this.sayT = SAY.gap;
+    if (kind === 'messy') {
+      const d = this.nearestMess();
+      const c = this.crow;
+      if (d) c.lookTarget = { x: d.x, y: d.y, until: c.time + 2.6, strength: 1 };
+    }
     return true;
   }
 
@@ -114,7 +221,7 @@ class Brain {
         this.lastMood = now;
         this.remindT = this.rnd().range(SAY.remind[0], SAY.remind[1]);
       } else if (now === 'content') this.lastMood = now;
-    } else if (['hungry', 'tired', 'sad'].includes(now) && this.remindT <= 0 && this.sayMood()) {
+    } else if (['hungry', 'tired', 'sad', 'sick', 'messy'].includes(now) && this.remindT <= 0 && this.sayMood()) {
       this.remindT = this.rnd().range(SAY.remind[0], SAY.remind[1]);
     }
   }
@@ -224,6 +331,7 @@ class Brain {
     else this.energy = Math.max(0, this.energy - (dt / 1800) * night - (flying ? dt / 400 : 0));
     if (this.fleeCooldown > 0) this.fleeCooldown -= dt;
 
+    this.updateCare(dt);
     this.updateMood(dt);
     this.updateGiftSequence(dt);
     this.updateStash(dt);
@@ -411,6 +519,12 @@ class Brain {
       this.nextDecide = 0.2;
       return;
     }
+    if (this.wantsToPoop()) {
+      c.act({ type: 'poop' });
+      this.plan = 'poop';
+      this.dwell();
+      return;
+    }
     const shiny = this.bestItem((it) => ITEM_TYPES[it.type].kind === 'shiny');
     if (shiny && rng.chance(0.45)) {
       if (this.planApproach(shiny, 'inspect')) return;
@@ -428,23 +542,24 @@ class Brain {
     const bars = w.perches.filter((p) => p.kind === 'taskbar' && p.id !== c.perchId && (multi || !myDisplay || p.displayId === myDisplay.id) && w.perchRange(p));
     const act = this.sim.settings.activity;
     const lively = act === 'lively' ? 1.5 : act === 'calm' ? 0.6 : 1;
+    const s = this.sick;
     const options = [
       { name: 'wander', w: (onBar ? 1 : 3) * lively },
-      { name: 'hopAbout', w: (onBar ? 0.3 : 1.2) * lively },
+      { name: 'hopAbout', w: (onBar ? 0.3 : 1.2) * lively * (1 - 0.5 * s) },
       { name: 'forage', w: perch ? 0.3 : 1.6 },
-      { name: 'lookAround', w: 2.2 / lively },
-      { name: 'perchRest', w: perch ? 2.2 : 0.8 },
-      { name: 'flyToEdge', w: edges.length ? 1.3 * lively : 0 },
-      { name: 'flyToBar', w: bars.length && !onBar ? 0.5 * lively : 0 },
+      { name: 'lookAround', w: (2.2 / lively) * (1 + s) },
+      { name: 'perchRest', w: (perch ? 2.2 : 0.8) * (1 + s) },
+      { name: 'flyToEdge', w: edges.length ? 1.3 * lively * (1 - 0.6 * s) : 0 },
+      { name: 'flyToBar', w: bars.length && !onBar ? 0.5 * lively * (1 - 0.6 * s) : 0 },
       { name: 'flyDown', w: onBar || onEdge ? 1.2 : 0 },
-      { name: 'flyAcross', w: 0.6 * lively * (multi && w.displays.length > 1 ? 2 : 1) },
-      { name: 'caw', w: c.time - this.lastCaw > 90 ? 0.35 : 0 },
-      { name: 'nap', w: this.energy < 0.5 ? 0.8 : 0.05 },
-      { name: 'dance', w: this.musicOn && this.danceCooldown <= 0 && this.energy > 0.15 ? 4.5 * lively : 0 },
+      { name: 'flyAcross', w: 0.6 * lively * (multi && w.displays.length > 1 ? 2 : 1) * (1 - 0.7 * s) },
+      { name: 'caw', w: c.time - this.lastCaw > 90 ? 0.35 * (1 - s) : 0 },
+      { name: 'nap', w: (this.energy < 0.5 ? 0.8 : 0.05) + 0.6 * s },
+      { name: 'dance', w: this.musicOn && this.danceCooldown <= 0 && this.energy > 0.15 ? 4.5 * lively * (1 - s) : 0 },
     ];
     const pick = rng.weighted(options, (o) => o.w);
     this.plan = pick.name;
-    const speed = act === 'lively' ? 44 : act === 'calm' ? 30 : 36;
+    const speed = (act === 'lively' ? 44 : act === 'calm' ? 30 : 36) * (1 - 0.35 * s);
     switch (pick.name) {
       case 'wander': {
         const t = this.randomSpotNear(60, 320);
@@ -608,6 +723,8 @@ class Brain {
     this.hunger = Math.max(0, this.hunger - (def.nutrition || 0.2));
     this.energy = Math.min(1, this.energy + 0.05);
     this.happiness = Math.min(1, this.happiness + (item.handFed ? 0.12 : 0.05));
+    this.gut = Math.min(GUT.max, this.gut + (def.nutrition || 0.2) * GUT.perMeal);
+    this.health = Math.min(1, this.health + CARE.mealGain);
   }
 
   pickPerch(list) {

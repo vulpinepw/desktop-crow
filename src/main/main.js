@@ -12,7 +12,7 @@ const { Game } = require('../core/game');
 const { t, sanitizeName, sanitizeGender, DEFAULT_NAMES, MOOD_LABELS } = require('../core/text');
 const { MediaWatcher } = require('./media');
 const { defaultSave, SPAWN_RATES, ACTIVITIES, SCALE_MIN, SCALE_MAX } = require('../core/save-schema');
-const { TIERS, tierIndex } = require('../core/affection');
+const { TIERS, tierIndex, AFFECTION_MAX } = require('../core/affection');
 const { ITEM_TYPES } = require('../core/items');
 const { MotionChecker } = require('../core/qa');
 
@@ -193,6 +193,7 @@ function start() {
       level: s.level,
       today: s.today,
       mood: s.mood,
+      droppings: s.droppings,
       music: s.music,
       musicWatch: media ? (media.gaveUp ? 'unavailable' : media.running ? 'on' : 'off') : 'off',
       boxed: s.boxed,
@@ -222,7 +223,7 @@ function start() {
     const allowed = {};
     if ('scale' in patch && Number.isFinite(+patch.scale)) allowed.scale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, +patch.scale));
     if ('volume' in patch && Number.isFinite(+patch.volume)) allowed.volume = Math.min(1, Math.max(0, +patch.volume));
-    for (const key of ['sound', 'notifications', 'cursorReactions', 'windowPerching', 'multiMonitor', 'musicDance']) {
+    for (const key of ['sound', 'notifications', 'cursorReactions', 'windowPerching', 'multiMonitor', 'musicDance', 'droppings']) {
       if (key in patch) allowed[key] = !!patch[key];
     }
     if (SPAWN_RATES.includes(patch.spawnRate)) allowed.spawnRate = patch.spawnRate;
@@ -405,6 +406,7 @@ function start() {
     save.position = game.sim.savedPosition() || save.position;
     save.gifts.pending = game.pendingGifts();
     save.mood = game.moodSave();
+    game.syncDroppings();
     if (storage.trySave(save)) game.dirty = false;
   }
   function saveSoon() {
@@ -483,8 +485,10 @@ function start() {
   }
 
   function hitStyle(hit) {
-    if (game.sim.drag) return 'grabbing';
+    const drag = game.sim.drag;
+    if (drag) return drag.kind === 'scrub' ? 'sponge' : 'grabbing';
     if (!hit) return 'default';
+    if (hit.kind === 'dropping') return 'sponge';
     return hit.kind === 'gift' || hit.kind === 'box' ? 'pointer' : 'grab';
   }
 
@@ -645,6 +649,7 @@ function start() {
       boxed: sim.boxed,
       box: sim.box ? { x: sim.box.x, y: sim.box.y, state: sim.box.state, rect: sim.boxRect() } : null,
       mood: sim.brain ? sim.brain.moodState() : null,
+      droppings: sim.droppings.map((d) => ({ id: d.id, x: d.x, y: d.y, z: d.z, dirt: d.dirt, age: d.age, gone: d.gone })),
       bubble: sim.bubble ? sim.bubble.kind : null,
       pet: sim.brain ? { score: Math.round(sim.brain.petScore * 100) / 100, over: sim.brain.petOver } : null,
       music: sim.music ? sim.music.source : null,
@@ -829,7 +834,23 @@ function start() {
         sim.crow.interrupt({ type: arg });
         break;
       case 'affection':
-        save.affection.value = Math.max(0, Math.min(1000, Number(arg)));
+        save.affection.value = Math.max(0, Math.min(AFFECTION_MAX, Number(arg)));
+        break;
+      case 'poop':
+        sim.brain.gut = Math.max(sim.brain.gut, 1.5);
+        sim.brain.poopT = 1e4;
+        sim.crow.interrupt({ type: 'poop' });
+        break;
+      case 'clean':
+        game.cleanAll();
+        break;
+      case 'age': {
+        const s = Number(arg);
+        if (Number.isFinite(s)) for (const d of sim.droppings) d.age += s;
+        break;
+      }
+      case 'health':
+        if (Number.isFinite(Number(arg))) sim.brain.health = Math.max(0.08, Math.min(1, Number(arg)));
         break;
       case 'settings':
         openSettings();

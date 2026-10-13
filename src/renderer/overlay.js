@@ -3,7 +3,7 @@
 const { defaultPose, computeRig, worldBounds, toWorld } = require('../core/rig');
 const { ITEM_TYPES } = require('../core/items');
 const { CAM } = require('../core/dims');
-const { drawCrow, drawItem, drawHeart, drawBox, boxBounds, drawMoodBubble, layoutMoodBubble } = require('./draw');
+const { drawCrow, drawItem, drawHeart, drawBox, boxBounds, drawMoodBubble, layoutMoodBubble, drawDropping, droppingBounds } = require('./draw');
 const { createAudio } = require('./audio');
 const { createFx } = require('./fx');
 
@@ -79,8 +79,21 @@ api.onFx((list) => {
 api.onSound((s) => {
   if (state.settings.sound) audio.play(s.name, s.volume != null ? s.volume : state.settings.volume);
 });
+const SPONGE_SVG = [
+  "<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>",
+  "<g transform='rotate(-24 16 16)'>",
+  "<rect x='5' y='11' width='22' height='13' rx='3.5' fill='#f7d046' stroke='#7a5a10' stroke-width='1.4'/>",
+  "<rect x='5' y='8' width='22' height='6' rx='2.5' fill='#3fa34d' stroke='#1f5a28' stroke-width='1.4'/>",
+  "<circle cx='11' cy='18' r='1.3' fill='#c99a1c'/><circle cx='17' cy='20' r='1.1' fill='#c99a1c'/><circle cx='22' cy='17' r='1.3' fill='#c99a1c'/><circle cx='14' cy='21.5' r='0.9' fill='#c99a1c'/>",
+  '</g>',
+  "<circle cx='26' cy='6' r='3' fill='rgba(214,236,255,0.6)' stroke='#5a96d2' stroke-width='1'/>",
+  "<circle cx='21' cy='3.5' r='1.8' fill='rgba(214,236,255,0.6)' stroke='#5a96d2' stroke-width='0.9'/>",
+  '</svg>',
+].join('');
+const CURSORS = { sponge: `url("data:image/svg+xml,${encodeURIComponent(SPONGE_SVG)}") 12 18, pointer` };
+
 api.onCursor((style) => {
-  document.body.style.cursor = style || 'default';
+  document.body.style.cursor = CURSORS[style] || style || 'default';
 });
 
 function send(type, e) {
@@ -103,7 +116,7 @@ window.addEventListener('contextmenu', (e) => {
 const lerp = (a, b, t) => a + (b - a) * t;
 const wrap = (a) => a - Math.PI * 2 * Math.floor((a + Math.PI) / (Math.PI * 2));
 const lerpAngle = (a, b, t) => a + wrap(b - a) * t;
-const NUM_KEYS = ['x', 'y', 'z', 'k', 'hipH', 'pitch', 'headX', 'headY', 'headA', 'headYaw', 'beak', 'eye', 'lookX', 'lookY', 'wing', 'flap', 'tailA', 'tailFan', 'fluff', 'shadow'];
+const NUM_KEYS = ['x', 'y', 'z', 'k', 'hipH', 'pitch', 'headX', 'headY', 'headA', 'headYaw', 'beak', 'eye', 'lookX', 'lookY', 'wing', 'flap', 'tailA', 'tailFan', 'fluff', 'shadow', 'ill'];
 
 function lerpPose(a, b, t) {
   if (!a) return b;
@@ -158,8 +171,8 @@ function sample(now) {
   const rt = now + (state.offset || 0) - DELAY;
   let a = snaps[0];
   let b = snaps[snaps.length - 1];
-  if (rt <= a.t) return { crow: a.crow, items: a.items, toasts: a.toasts, box: a.box, bubble: a.bubble, k: a.k };
-  if (rt >= b.t) return { crow: b.crow, items: b.items, toasts: b.toasts, box: b.box, bubble: b.bubble, k: b.k };
+  if (rt <= a.t) return { crow: a.crow, items: a.items, toasts: a.toasts, box: a.box, bubble: a.bubble, droppings: a.droppings || [], k: a.k };
+  if (rt >= b.t) return { crow: b.crow, items: b.items, toasts: b.toasts, box: b.box, bubble: b.bubble, droppings: b.droppings || [], k: b.k };
   for (let i = 0; i < snaps.length - 1; i++) {
     if (snaps[i].t <= rt && rt <= snaps[i + 1].t) {
       a = snaps[i];
@@ -174,8 +187,24 @@ function sample(now) {
     toasts: b.toasts,
     box: b.box && a.box ? Object.assign({}, b.box, { open: lerp(a.box.open, b.box.open, t), alpha: lerp(a.box.alpha, b.box.alpha, t), age: lerp(a.box.age, b.box.age, t) }) : b.box,
     bubble: b.bubble,
+    droppings: lerpDroppings(a.droppings || [], b.droppings || [], t),
     k: b.k,
   };
+}
+
+function lerpDroppings(a, b, t) {
+  const prev = new Map(a.map((d) => [d.id, d]));
+  return b.map((db) => {
+    const da = prev.get(db.id);
+    if (!da) return db;
+    return Object.assign({}, db, {
+      z: lerp(da.z || 0, db.z || 0, t),
+      dirt: lerp(da.dirt, db.dirt, t),
+      splat: lerp(da.splat, db.splat, t),
+      gone: lerp(da.gone || 0, db.gone || 0, t),
+      wet: lerp(da.wet || 0, db.wet || 0, t),
+    });
+  });
 }
 
 function hideCanvas() {
@@ -235,6 +264,7 @@ function frame(now) {
   const s = sample(now);
   const k = s ? s.k || 1 : 1;
   const items = [];
+  const droppings = s ? s.droppings || [] : [];
   let r = null;
   if (s) {
     for (const it of s.items) {
@@ -242,6 +272,10 @@ function frame(now) {
       const it2 = Object.assign({}, it, { z: (it.z || 0) + (it.lift || 0) / CAM.H, alpha: (it.alpha == null ? 1 : it.alpha) * (it.fadeCollect == null ? 1 : it.fadeCollect) });
       items.push(it2);
       r = itemRect(r, it2, k);
+    }
+    for (const d of droppings) {
+      const db = droppingBounds(d, k);
+      r = addRect(r, db.x0, db.y0, db.x1, db.y1);
     }
   }
   const rig = s && s.crow ? computeRig(s.crow) : null;
@@ -285,8 +319,10 @@ function frame(now) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(dpr, 0, 0, dpr, -(b.x * dpr + v.x), -(b.y * dpr + v.y));
     const time = now / 1000;
+    for (const d of droppings) if (!(d.z > 0)) drawDropping(ctx, d, k);
     const scene = items.map((it) => ({ d: nearness(it.y, it.z), draw: () => drawItem(ctx, it, k, time) }));
-    if (rig) scene.push({ d: nearness(s.crow.y, s.crow.z), draw: () => drawCrow(ctx, s.crow, { rig }) });
+    for (const d of droppings) if (d.z > 0) scene.push({ d: nearness(d.y, d.z), draw: () => drawDropping(ctx, d, k) });
+    if (rig) scene.push({ d: nearness(s.crow.y, s.crow.z), draw: () => drawCrow(ctx, s.crow, { rig, time }) });
     if (box) {
       const half = (box.d / 2) * k * CAM.F;
       if (box.state === 'closed') scene.push({ d: nearness(box.y + half, 0), draw: () => drawBox(ctx, box, k, time, 'all') });
