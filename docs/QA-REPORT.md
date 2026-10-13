@@ -1,8 +1,52 @@
-# QA report — Desktop Crow 1.3.1
+# QA report — Desktop Crow 1.4.0
 
-Desktop Crow is made by tordev. This report covers what changed in 1.3.1,
-1.3, 1.2 and 1.1, what was tested, what the tests found, what was fixed, and
-what was not verified. All numbers are from the final code.
+Desktop Crow is made by tordev. This report covers what changed in 1.4.0,
+1.3.1, 1.3, 1.2 and 1.1, what was tested, what the tests found, what was
+fixed, and what was not verified. All numbers are from the final code.
+
+## What changed in 1.4.0
+
+* **50 friendship levels.** Levels 1 to 20 keep exactly the thresholds they
+  had, so no crow loses a level or a stage, and the five stages and their gift
+  odds are unchanged. Levels 21 to 50 come after them, inside Bonded, from
+  1000 to 2450 trust points (35 to 65 points apart; trust now goes up to
+  2500). Past 1000 points the gain curve stops shrinking, so the new levels
+  stay within reach: about 3 to 5½ months to level 50 depending on play
+  style, without counting gifts and petting. Level 50 gets its own message,
+  and there are new milestones for levels 35 and 50 (seventeen in all).
+* **Droppings.** After eating, the crow now and then leans forward, lifts its
+  tail (a new *poop* animation) and a white dropping falls from under it and
+  splats on the screen, with a soft sound. Press on a dropping and rub it with
+  the pointer to clean it, with soap bubbles and a sponge cursor; a click
+  wipes a third. At most 5 at a time, never while hidden, paused or boxed,
+  and they are saved. Settings → Behaviour → Droppings turns them off.
+* **Health.** A new health value (shown in Settings → Crow next to fullness,
+  energy and happiness). Droppings left more than 2.5 minutes make the crow
+  complain (*Messy*), unhappy and then unwell: it droops and fluffs up, coughs
+  with a little puff, walks more slowly, flies and dances less and tires
+  faster, and at 40 % its mood is *Sick*. It never goes below 8 %: the crow
+  cannot die. Cleaning up, food, sleep and time make it recover.
+* **Fever kit.** While there is a mess on the screen or its health is below
+  50 %, the crow wears a blue ice bag on its head and holds a thermometer in
+  its beak. Both are placed on the 3D rig, so they turn with its head; the
+  thermometer is put away whenever the beak is busy. The crow in the Settings
+  window wears them too.
+
+## Results for 1.4.0
+
+| Check | What it covers | Result |
+|---|---|---|
+| `npm test` | 145 tests: everything listed for 1.3.1, the level tests rewritten for 50 levels (levels 1 to 20 unchanged, the curve past 1000 points), saves with health and droppings, the new milestones, and seven new feature tests: pooping and the falling, splatting dropping, rubbing and clicking clean, mess turning into unhappiness and sickness with the floor and the recovery, coughing and the fever kit appearing and going away, droppings saved and switched off, and no pooping while hidden, paused, boxed or with 5 on screen. The *poop* state joins every state test and the transition matrix. | **145/145 pass** |
+| Transition matrix | 16 animation states (*poop* added) × 16 × 6 entry points × 2 seeds = 3,072 runs, 865,626 frames | **0 violations** |
+| Soak sample (`node test/soak.js all 900 1-6`) | 54 runs of random use, 2,916,000 frames, with 1,915 Feeds; the crow pooped 136 times along the way | **54/54 runs clean** |
+| Art | The droppings (clean, scrubbed, falling, fading, splatting) on white and dark backgrounds, the fever kit from the side, front and back and while coughing, the *Sick* and *Messy* bubbles and the sponge cursor, rendered from the real drawing code; Settings → Crow, Friendship and Behaviour rendered from the real game code | checked by eye: visible on white and dark windows, kit follows the head |
+| Packaged Windows app | 1.4.0 build driven through its test inbox (no mouse): a save at 2440 trust points (level 49) loads as is and a Feed still earns points (2440 → 2442); the crow poops and the dropping lands; left there it becomes a mess (fever kit on), with low health the mood is *Sick*; cleaning removes and counts it; the save keeps the dropping on the screen, the health and the new statistics, and the dropping is still there after a restart | **11/11** |
+| Linux smoke test | 1.4.0 AppImage under WSLg: box opened, Feed, two poops (from walking and from landing), a mess, *Sick*, the fever kit, a cleaning, Settings, a dance, Hide/Show, for 55 s with no errors or motion violations and nothing left running; the save kept one dropping on the screen, two made, one cleaned | **pass** |
+| Packages | `app.asar` of the Windows build and of the AppImage, and the `.deb` metadata | version 1.4.0, author and maintainer tordev, the new code inside, no comments in the app's code |
+
+WSL had no network while 1.4.0 was built, so electron-builder could not
+download the Linux Electron runtime; the build used the same Electron 44.4.5
+zip from the local download cache, unpacked and passed as `electronDist`.
 
 ## What changed in 1.3.1
 
@@ -291,6 +335,13 @@ body, with a 5-unit twitch limit.
 
 ## Not verified
 
+* **Cleaning with a real mouse in the packaged 1.4.0 build:** the real-mouse
+  end-to-end test was not run (it moves your pointer, and the PC was in use).
+  Rubbing and clicking droppings clean is covered by `npm test` through the
+  same pointer handling the overlay uses, and the packaged builds were checked
+  through their test inbox. How rubbing *feels* by hand was not judged by a
+  person.
+
 * **Clicking the crow in the packaged 1.3.1 build:** the end-to-end click
   on the crow did not reach the app because the PC was in use during the
   run (see *Results for 1.3.1*). It passed on 1.3.0, its code is unchanged,
@@ -302,10 +353,11 @@ body, with a 5-unit twitch limit.
   Linux music detection was tested with sample `dbus-send` replies only.
 * **Petting by hand:** petting was tested with scripted mouse strokes; how
   easy it feels to trigger by hand was not judged by a person.
-* **The Windows installer itself was not run on this PC:** Desktop Crow 1.3.0
-  is installed and running here, and the new installer would replace it. The app inside the installer passed the end-to-end test.
-  Updating over 1.0 or 1.1 (keeping the save, migrating the size) is covered
-  by unit tests only.
+* **The Windows installer itself was not run on this PC:** Desktop Crow 1.3.1
+  is installed and running here, and the new installer would replace it. The
+  app inside the installer passed the checks above. Updating over 1.0 or 1.1
+  (keeping the save, migrating the size) and over 1.3 (a healthy crow, no
+  droppings, levels kept) is covered by unit tests.
 * **A person dragging the crow:** dragging was tested with scripted mouse
   input (in simulation and on the real app); how it *feels* by hand was not
   judged by a person.

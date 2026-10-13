@@ -1,7 +1,7 @@
 # Trust, affection and gifts
 
-Your crow keeps an **affection** value from 0 to 1000. Settings → Friendship shows
-it as *trust points*, together with the **friendship level** (1–20) and the **trust
+Your crow keeps an **affection** value from 0 to 2500. Settings → Friendship shows
+it as *trust points*, together with the **friendship level** (1–50) and the **trust
 tier** (the five stages below). Every number on this page comes straight from
 `src/core/affection.js` and `src/core/items.js`, and `test/affection.test.js`
 fails if this page and the code ever disagree.
@@ -14,16 +14,18 @@ fails if this page and the code ever disagree.
 | Curious | 100–249 | Flinch distance shrinks to 80 crow-units. Watches you. Never brings gifts. |
 | Friendly | 250–449 | No longer shies away. Sometimes hops over to a resting pointer and chirps. **Gifts start.** |
 | Trusting | 450–699 | As Friendly, gifts twice as likely and rarer ones appear. |
-| Bonded | 700–1000 | As Trusting, the best gift odds. |
+| Bonded | 700–2500 | As Trusting, the best gift odds. |
 
 (A crow-unit is one screen pixel at 100 % crow size, the default size.)
 
 ## Friendship levels
 
-The 1000 points are also split into 20 friendship levels, four in each tier, so
-there is always a next step in sight. Levels change nothing by themselves (the
+The points are also split into 50 friendship levels, so there is always a next
+step in sight. Levels 1 to 20 are four in each tier and end at 1000 points, as
+they did before 1.4; levels 21 to 50 come after them, inside Bonded, from 1000 to
+2450 points (35 to 65 points apart). Levels change nothing by themselves (the
 tier decides how the crow behaves), but each new level pops up a short message
-over the crow, and a new tier names it.
+over the crow, a new tier names it, and level 50 gets a message of its own.
 
 | Tier | Levels | Each level starts at (affection) |
 |------|--------|----------------------------------|
@@ -31,15 +33,16 @@ over the crow, and a new tier names it.
 | Curious | 5–8 | 100, 135, 170, 210 |
 | Friendly | 9–12 | 250, 295, 345, 395 |
 | Trusting | 13–16 | 450, 510, 570, 635 |
-| Bonded | 17–20 | 700, 775, 850, 930 |
+| Bonded | 17–50 | 700, 775, 850, 930, 1000, 1035, 1070, 1105, 1145, 1185, 1225, 1265, 1310, 1355, 1400, 1445, 1490, 1540, 1590, 1640, 1690, 1740, 1795, 1850, 1905, 1960, 2015, 2075, 2135, 2195, 2255, 2320, 2385, 2450 |
 
 ## Milestones
 
-Settings → Friendship also lists fourteen milestones, worked out from the saved
+Settings → Friendship also lists seventeen milestones, worked out from the saved
 statistics and treasures: a first snack, a first hand-feeding, 25 hand-feedings,
 a first gift, 10 gifts, every kind of treasure, a legendary treasure, 7 and 30
-days together, 100 flights, 10 petting sessions, 5 dances to your music,
-reaching Bonded and reaching level 20 (`src/core/milestones.js`).
+days together, 100 flights, 10 petting sessions, 5 dances to your music, 25
+droppings cleaned up, reaching Bonded, and reaching levels 20, 35 and 50
+(`src/core/milestones.js`).
 
 ## Affection gains
 
@@ -57,10 +60,11 @@ reaching Bonded and reaching level 20 (`src/core/milestones.js`).
 crow already trusts you:
 
 ```
-gain = base × (1 − A / 1400)      A = current affection
+gain = base × (1 − min(A, 1000) / 1400)      A = current affection
 ```
 
 So a hand-feeding is worth 10 points at the start, 8 at 250, 5 at 700 and 3 at 1000.
+From 1000 points on the curve stops shrinking, so levels 21 to 50 stay within reach.
 Fractions of a point are not lost: they are carried over (and saved) until they
 add up to whole points.
 
@@ -81,13 +85,17 @@ points in one check, never below 0.
 ## How long it takes
 
 Produced by `node scripts/affection-timeline.js` with the real functions (40 or
-30 snacks a day found by the crow itself, counted as above):
+30 snacks a day found by the crow itself, counted as above; gifts and petting
+not counted, so real play is a little faster):
 
-| Play style | Curious | Friendly | Trusting | Bonded |
-|---|---:|---:|---:|---:|
-| Leaves it running (never feeds) | day 4 | day 11 | day 19 | day 32 |
-| Casual (1 hand-feed, 1 Feed a day) | day 3 | day 7 | day 13 | day 22 |
-| Attentive (3 hand-feeds, 2 Feeds a day) | day 2 | day 5 | day 9 | day 15 |
+| Play style | Curious | Friendly | Trusting | Bonded | Level 21 | Level 35 | Level 50 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Leaves it running (never feeds) | day 4 | day 11 | day 19 | day 32 | day 50 | day 96 | day 163 |
+| Casual (1 hand-feed, 1 Feed a day) | day 3 | day 7 | day 13 | day 22 | day 38 | day 78 | day 137 |
+| Attentive (3 hand-feeds, 2 Feeds a day) | day 2 | day 5 | day 9 | day 15 | day 26 | day 54 | day 95 |
+
+The first five columns are the same as in 1.3.1: adding levels 21 to 50 made no
+stage slower to reach.
 
 ## Gift checks
 
@@ -171,3 +179,38 @@ Gifts that are still on their way (the crow has flown off to fetch one, or is
 carrying one back) are saved as well, so quitting or hiding the crow at that
 moment no longer loses them: they turn up on the desktop the next time the crow
 is there.
+
+## Droppings and health
+
+Every number here comes from `src/core/care.js`.
+
+**When it poops.** Each snack the crow eats fills its gut by 0.6 × the snack's
+nutrition (0.15 to 0.45), and the gut also fills by 0.75 an hour while the crow
+is awake on screen. When it passes a random mark between 0.9 and 1.3, and at
+least 8 minutes after the last time, the crow lifts its tail and a white
+dropping falls from under it onto the floor (or the window edge or taskbar it
+stands on). It never does this while hidden, paused or still in its box, and
+never with 5 droppings already on the screen. Settings → Behaviour → Droppings
+turns it off, which also clears the screen. Droppings are saved, so they are
+still there after a restart.
+
+**Cleaning up.** Press on a dropping and rub back and forth: about 230 pixels of
+rubbing over it (at 100 % size) cleans it, with soap bubbles, a sparkle and a
+little chime. A click wipes a third of it. Each one cleaned gives the crow +6 %
+happiness and +3 % health.
+
+**What a mess does.** A dropping becomes a mess 2.5 minutes after it lands. While
+messes are on the screen, each one takes 2.5 % happiness a minute and 30 % health
+an hour, and the crow complains (*Messy*) and looks at it. Health shows in
+Settings → Crow. Below 50 % the crow is unwell: it fluffs up and droops, coughs
+now and then, walks more slowly, flies and dances less, tires faster and gets
+sadder. At 40 % or less its mood is *Sick*. Health never drops below 8 %: the
+crow cannot die.
+
+**Getting better.** With the screen clean it recovers 36 % health an hour while
+awake and 72 % an hour while asleep, plus 2 % for every snack, 3 % for every
+dropping you clean and 20 % for every hour the app is closed.
+
+**Fever kit.** While there is a mess on the screen, or while its health is below
+50 %, the crow wears a blue ice bag on its head and holds a thermometer in its
+beak (it puts the thermometer away to eat, peck, carry or cough).

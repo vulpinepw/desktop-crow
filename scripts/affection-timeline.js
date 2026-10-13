@@ -11,7 +11,9 @@ const PROFILES = {
   'Attentive (3 hand-feeds, 2 Feeds a day)': { snacks: 30, hand: 3, tray: 2 },
 };
 
-function simulate(p, days = 120) {
+const GOALS = [...A.TIERS.slice(1).map((t) => ({ name: t.name, min: t.min })), ...[21, 35, 50].map((l) => ({ name: `Level ${l}`, min: A.LEVEL_MINS[l - 1] }))];
+
+function simulate(p, days = 500) {
   const s = { value: 0, lastFedAt: null, lastDecayCheck: null, manualFeeds: [], dailyManual: null, dailyPassive: null };
   const reached = {};
   for (let d = 0; d < days; d++) {
@@ -20,14 +22,14 @@ function simulate(p, days = 120) {
     for (let i = 0; i < p.hand; i++) A.applyEvent(s, 'feedHand', base + (1 + i * 2) * 3600000);
     for (let i = 0; i < p.tray; i++) A.applyEvent(s, 'feedTray', base + (2 + i * 2) * 3600000);
     for (let i = 0; i < p.snacks; i++) A.applyEvent(s, 'eatSpawned', base + i * 12 * 60000);
-    for (const t of A.TIERS) if (reached[t.key] == null && s.value >= t.min) reached[t.key] = d + 1;
+    for (const g of GOALS) if (reached[g.name] == null && s.value >= g.min) reached[g.name] = d + 1;
   }
   return reached;
 }
 
-console.log('| Play style | ' + A.TIERS.slice(1).map((t) => t.name).join(' | ') + ' |');
-console.log('|---|' + A.TIERS.slice(1).map(() => '---:').join('|') + '|');
+console.log('| Play style | ' + GOALS.map((g) => g.name).join(' | ') + ' |');
+console.log('|---|' + GOALS.map(() => '---:').join('|') + '|');
 for (const [name, p] of Object.entries(PROFILES)) {
   const r = simulate(p);
-  console.log(`| ${name} | ` + A.TIERS.slice(1).map((t) => (r[t.key] ? `day ${r[t.key]}` : '> 120 days')).join(' | ') + ' |');
+  console.log(`| ${name} | ` + GOALS.map((g) => (r[g.name] ? `day ${r[g.name]}` : '> 500 days')).join(' | ') + ' |');
 }
